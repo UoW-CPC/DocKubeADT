@@ -23,7 +23,7 @@ Install and run k8s2adt with pip:
 
 Or skip the install and simply:
 
-    python3 -m k8s2adt.cli PATH/TO/FILENAME.YAML
+    python3 -m k8s2adt PATH/TO/FILENAME.YAML
 
 Generated output file will be saved to your current directory as `adt-FILENAME.YAML` 
 
