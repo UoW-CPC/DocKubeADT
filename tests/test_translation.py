@@ -34,7 +34,7 @@ def test_multi_translation():
 
     output_path = f"adt-{Path(file.name).name}"
     with open(output_path) as adt:
-        yaml_adt = yaml.safe_load(adt)    
+        yaml_adt = yaml.safe_load(adt)
     os.remove(output_path)
 
     nodes = yaml_adt["topology_template"]["node_templates"]
