@@ -4,6 +4,13 @@ from pathlib import Path
 import ruamel.yaml as yaml
 
 
+TOSCA_DEF_VERSION = "tosca_simple_yaml_1_2"
+MICADO_TYPES_URL = (
+    "https://raw.githubusercontent.com/micado-scale/tosca/"
+    "develop/micado_types.yaml"
+)
+
+
 def translate(file):
     """Translates from K8s Manifest(s) to a MiCADO ADT
 
@@ -57,10 +64,8 @@ def _get_default_adt(filename):
         dict: ADT boilerplate
     """
     return {
-        "tosca_definitions_version": "tosca_simple_yaml_1_2",
-        "imports": [
-            "https://raw.githubusercontent.com/micado-scale/tosca/develop/micado_types.yaml"
-        ],
+        "tosca_definitions_version": TOSCA_DEF_VERSION,
+        "imports": [MICADO_TYPES_URL],
         "repositories": {"docker_hub": "https://hub.docker.com/"},
         "description": f"Generated from K8s manifests: {filename}",
         "topology_template": {"node_templates": {}},
