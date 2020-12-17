@@ -4,8 +4,9 @@ import sys
 from .translator import translate
 from ruamel.yaml.scanner import ScannerError
 
+
 @click.command()
-@click.argument('file')
+@click.argument("file")
 def main(file):
     """Converts from Kubernetes manifests to a MiCADO ADT
 
@@ -20,5 +21,5 @@ def main(file):
         sys.exit(1)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     main()
