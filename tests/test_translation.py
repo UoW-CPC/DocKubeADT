@@ -25,7 +25,7 @@ def test_basic_translation():
     os.remove(output_path)
 
     nodes = yaml_adt["topology_template"]["node_templates"]
-    assert "my-pod-name" in nodes
+    assert "my-pod-name-pod" in nodes
 
 
 def test_multi_translation():
@@ -38,4 +38,6 @@ def test_multi_translation():
     os.remove(output_path)
 
     nodes = yaml_adt["topology_template"]["node_templates"]
-    assert all(["busybox-sleep-less" in nodes, "busybox-sleep" in nodes])
+    assert all(
+        ["busybox-sleep-less-pod" in nodes, "busybox-sleep-pod" in nodes]
+    )
