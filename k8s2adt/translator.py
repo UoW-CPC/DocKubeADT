@@ -51,7 +51,12 @@ def _get_name(manifest):
     Returns:
         string: Name of the Kubernetes object, or None
     """
-    return manifest["metadata"].get("name")
+    try:
+        name = manifest["metadata"]["name"].lower()
+        kind = manifest["kind"].lower()
+        return f"{name}-{kind}"
+    except KeyError:
+        return None
 
 
 def _get_default_adt(filename):
