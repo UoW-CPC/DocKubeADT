@@ -1,7 +1,7 @@
-# K8s (manifests) to (MiCADO) ADT
+# Docker Compose and K8s manifests to (MiCADO) ADT
 
 Translate a single or multi-part YAML file containing
-Kubernetes manifests into a MiCADO ADT.
+Kubernetes manifests or a Docker compose into a MiCADO ADT.
 
 ## Requirements
 
@@ -11,21 +11,27 @@ Kubernetes manifests into a MiCADO ADT.
 
 ## Usage
 
+Install compose binary:
+
+    curl -L https://github.com/kubernetes/kompose/releases/download/v1.24.0/kompose-linux-amd64 -o kompose
+    chmod +x kompose
+    sudo mv ./kompose /usr/local/bin/kompose
+
 Clone the repository:
 
-    git clone https://github.com/uowcpc/k8s2adt k8s2adt
-    cd k8s2adt
+    git clone <repository> dockubeadt
+    cd dockubeadt
 
-Install and run k8s2adt with pip:
+Install and run dockubeadt with pip:
 
     pip3 install .
-    k8s2adt PATH/TO/FILENAME.YAML
+    dockubeadt PATH/TO/FILENAME.YAML
 
 Or skip the install and simply:
 
-    python3 -m k8s2adt PATH/TO/FILENAME.YAML
+    python3 -m dockubeadt PATH/TO/FILENAME.YAML
 
-Generated output file will be saved to your current directory as `adt-FILENAME.YAML` 
+Generated output file will be saved to your current directory as `adt-FILENAME.YAML`
 
 ## Roadmap
 
