@@ -1,7 +1,6 @@
 import tempfile
-import os
-from pathlib import Path
 
+import pytest
 import ruamel.yaml as yaml
 
 from dockubeadt.translator import translate
@@ -29,5 +28,11 @@ def test_multi_translation():
 
     nodes = yaml_adt["topology_template"]["node_templates"]
     assert all(
-        ["busybox-sleep-less-pod" in nodes, "busybox-sleep-pod" in nodes]
+        ["busybox-sleep-less-service" in nodes, "busybox-sleep-pod" in nodes]
     )
+
+
+@pytest.mark.xfail(raises=ValueError)
+def test_two_pod_translation():
+    with open("tests/data/hello_hello.yaml") as file:
+        translate(file.name)
