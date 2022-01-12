@@ -32,7 +32,7 @@ def test_multi_translation():
     )
 
 
-@pytest.mark.xfail(raises=ValueError)
 def test_two_pod_translation():
-    with open("tests/data/hello_hello.yaml") as file:
-        translate(file.name)
+    with pytest.raises(ValueError):
+        with open("tests/data/hello_hello.yaml") as file:
+            translate(file.name)
