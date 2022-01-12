@@ -33,6 +33,15 @@ Or skip the install and simply:
 
 Generated output file will be saved to your current directory as `adt-FILENAME.YAML`
 
+## Docker Compose Variables
+
+The variables in docker compose file needs to be in these form:
+
+    - TEST_MESSAGE={ get_input:TEST_MESSAGE }
+    TEST_MESSAGE: '{ get_input:TEST_MESSAGE }'
+    command: 'python3 start.py {get_input:DB_MODEL_}'
+
+
 ## Roadmap
 
 - Support appending translated nodes to an existing ADT
