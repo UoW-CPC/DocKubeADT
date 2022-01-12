@@ -13,7 +13,7 @@ Kubernetes manifests or a Docker compose into a MiCADO ADT.
 
 Install compose binary:
 
-    curl -L https://github.com/kubernetes/kompose/releases/download/v1.24.0/kompose-linux-amd64 -o kompose
+    curl -L https://github.com/kubernetes/kompose/releases/download/v1.26.1/kompose-linux-amd64 -o kompose
     chmod +x kompose
     sudo mv ./kompose /usr/local/bin/kompose
 

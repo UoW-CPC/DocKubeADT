@@ -4,7 +4,7 @@ from pathlib import Path
 
 import ruamel.yaml as yaml
 
-from k8s2adt.translator import translate
+from dockubeadt.translator import translate
 
 
 def test_basic_translation():

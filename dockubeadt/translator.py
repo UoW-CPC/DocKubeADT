@@ -165,6 +165,17 @@ def _to_node(manifest):
     metadata.pop('annotations', None)
     metadata.pop('creationTimestamp', None)
     manifest['metadata'] = metadata
+
+    if manifest.get('spec') is not None:
+        spec = manifest['spec']
+        if spec.get('template') is not None:
+            template = spec['template']
+            if template.get('metadata') is not None:
+                template_metadata = template['metadata']
+                template_metadata.pop('annotations', None)
+                template_metadata.pop('creationTimestamp', None)
+                manifest['spec']['template']['metadata'] = template_metadata
+
     manifest.pop('status', None)
     return {
         "type": "tosca.nodes.MiCADO.Kubernetes",
