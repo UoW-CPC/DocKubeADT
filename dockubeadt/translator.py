@@ -4,8 +4,8 @@ import ruamel.yaml as yaml
 import logging
 
 logging.basicConfig(filename="std.log",format='%(asctime)s %(message)s',filemode='w')
-logger=logging.getLogger()
-logger.setLevel(logging.INFO)
+log=logging.getLogger()
+log.setLevel(logging.INFO)
 
 def translate(file, stream = False):
     if not stream:
@@ -14,65 +14,75 @@ def translate(file, stream = False):
     else:
         data = file
 
-    type = check_type(data)
-    if type == 'manifest':
-        mdt = translate_manifest(data)
-    elif type == 'compose':
-        container_name = validate_compose(data)
-        convert_doc_to_kube(data,container_name)
+    dicts = yaml.safe_load_all(data)
+    type = check_type(dicts)
+    
+    if type == 'kubernetes-manifest':
+        manifests = yaml.safe_load_all(data)
+        adt = translate_dict(type, manifests)
+    elif type == 'docker-compose':
+        composes = yaml.safe_load(data)
+        adt = translate_dict(type, composes)
+
+    return adt
+
+def translate_dict(deployment_format, topology_metadata):
+    if deployment_format == 'kubernetes-manifest':
+        mdt = translate_manifest(topology_metadata)
+    elif deployment_format == 'docker-compose':
+        container_name = validate_compose(topology_metadata)
+        convert_doc_to_kube(topology_metadata,container_name)
         file_name = "{}.yaml".format(container_name)
         with open(file_name, "r") as f:
             data_new = f.read()
-        mdt = translate_manifest(data_new)
+        manifests = yaml.safe_load_all(data_new)
+        mdt = translate_manifest(manifests)
         cmd = "rm {}*".format(container_name)
         os.system(cmd)
 
     return mdt
 
-def check_type(data):
-    """Check whether the given string data is a Docker Compose or K8s Manifest
+def check_type(dicts):
+    """Check whether the given dictionary is a Docker Compose or K8s Manifest
 
     Args:
-        data (string): string containing a docker compose or k8s manifest
+        dicts (dictionary): dictionary containing a docker compose or k8s manifest
 
     Returns:
-        string: compose or manifest
+        string: docker-compose or kubernetes-manifest
     """     
-    dicts = yaml.safe_load_all(data)
     dict = list(dicts)[0]
     if 'kind' in dict:
-        type = "manifest"
+        type = "kubernetes-manifest"
     elif 'services' in dict:
-        type = "compose"    
+        type = "docker-compose"    
     return type
 
-def validate_compose(data):
+def validate_compose(dicts):
     """Check whether the given file Docker Compose contains more than one containers
 
     Args:
-        data (string): String containing Docker Compose contents
+        dicts (dictionary): Dictionary containing Docker Compose contents
 
     Returns:
         string: name of the container
     """   
-    dicts = yaml.safe_load(data)
     dict = dicts['services']
     if len(dict) > 1:
-        logger.info("Docker compose file can't have more than one containers. Exiting...")
+        log.info("Docker compose file can't have more than one containers. Exiting...")
         raise ValueError("Docker compose file has more than one container")
     name = next(iter(dict))
     return name
 
-def convert_doc_to_kube(data,container_name):
+def convert_doc_to_kube(dicts,container_name):
     """Check whether the given file Docker Compose contains more than one containers
 
     Args:
-        file (string): Path to a Docker Compose file
+        dicts (dictionary): Dictionary containing Docker Compose file
 
     Returns:
         string: name of the container
     """
-    dicts = yaml.safe_load(data)
     if dicts['version'] == '3.9':
         dicts['version'] = '3.7'
     with open('compose.yaml', "w") as out_file:
@@ -84,7 +94,7 @@ def convert_doc_to_kube(data,container_name):
 
     os.remove('compose.yaml')
 
-def translate_manifest(data):
+def translate_manifest(manifests):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -94,9 +104,8 @@ def translate_manifest(data):
     """
     adt = _get_default_adt()
     node_templates = adt["topology_template"]["node_templates"]
-    logger.info("Translating the manifest")
+    log.info("Translating the manifest")
     
-    manifests = yaml.safe_load_all(data)
     _transform(manifests, 'micado', node_templates)
 
     return adt
@@ -115,7 +124,7 @@ def _transform(manifests, filename, node_templates):
         if count == 1:
             wln = wln + 1
         if wln > 1:
-            logger.info("Manifest file can't have more than one workloads. Exiting ...")
+            log.info("Manifest file can't have more than one workloads. Exiting ...")
             raise ValueError("Manifest file has more than one workload")
         node_name = name or f"{filename}-{ix}"
         node_templates[node_name] = _to_node(manifest)
