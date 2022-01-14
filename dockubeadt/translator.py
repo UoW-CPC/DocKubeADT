@@ -20,11 +20,12 @@ def translate(file, stream = False):
     
     if type == 'kubernetes-manifest':
         manifests = yaml.safe_load_all(data)
-        adt = translate_dict(type, manifests)
+        mdt = translate_dict(type, manifests)
     elif type == 'docker-compose':
         composes = yaml.safe_load(data)
-        adt = translate_dict(type, composes)
+        mdt = translate_dict(type, composes)
 
+    adt = "topology_template:\n" + mdt
     return adt
 
 def translate_dict(deployment_format, topology_metadata, log: logging = log):
@@ -103,7 +104,9 @@ def convert_doc_to_kube(dicts,container_name):
     with open('compose.yaml', "w") as out_file:
         yaml.round_trip_dump(dicts, out_file)
     cmd = "kompose convert -f compose.yaml --volumes hostPath"
-    os.system(cmd)
+    status = os.system(cmd)
+    if status != 0:
+        raise ValueError("Docker Compose has a validation error")
     cmd = "count=0;for file in `ls {}-*`; do if [ $count -eq 0 ]; then cat $file >{}.yaml; count=1; else echo '---'>>{}.yaml; cat $file >>{}.yaml; fi; done".format(container_name,container_name,container_name,container_name)
     os.system(cmd)
 
