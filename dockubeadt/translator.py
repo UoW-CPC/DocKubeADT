@@ -2,6 +2,7 @@ import os
 
 import ruamel.yaml as yaml
 import logging
+from io import StringIO
 
 logging.basicConfig(filename="std.log",format='%(asctime)s %(message)s',filemode='w')
 log=logging.getLogger()
@@ -26,7 +27,7 @@ def translate(file, stream = False):
 
     return adt
 
-def translate_dict(deployment_format, topology_metadata):
+def translate_dict(deployment_format, topology_metadata, log: logging = log):
     if deployment_format == 'kubernetes-manifest':
         mdt = translate_manifest(topology_metadata)
     elif deployment_format == 'docker-compose':
@@ -42,7 +43,19 @@ def translate_dict(deployment_format, topology_metadata):
     else: 
         raise ValueError("The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'")
 
-    return mdt
+    _yaml = yaml.YAML()
+    _yaml.preserve_quotes = True
+    _yaml.width = 800
+    dt_stream = StringIO()
+    _yaml.dump(mdt, dt_stream)
+    adt_str = dt_stream.getvalue()
+    adt = ''
+    for line in adt_str.splitlines():
+        adt = adt + '  ' + line + '\n'
+    adt = adt[:adt.rfind('\n')]
+    log.info("Translation completed successfully")
+    
+    return adt
 
 def check_type(dicts):
     """Check whether the given dictionary is a Docker Compose or K8s Manifest
