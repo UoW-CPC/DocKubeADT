@@ -16,16 +16,18 @@ def test_basic_translation():
     with tempfile.NamedTemporaryFile("r+") as file:
         yaml.safe_dump(manifest, file)
         file.seek(0)
-        yaml_adt = translate(file.name)
+        data = translate(file.name)
 
+    yaml_adt = yaml.safe_load(data)
     nodes = yaml_adt["topology_template"]["node_templates"]
     assert "my-pod-name-pod" in nodes
 
 
 def test_multi_translation():
     with open("tests/data/hello.yaml") as file:
-        yaml_adt = translate(file.name)
+        data = translate(file.name)
 
+    yaml_adt = yaml.safe_load(data)
     nodes = yaml_adt["topology_template"]["node_templates"]
     assert all(
         ["busybox-sleep-less-service" in nodes, "busybox-sleep-pod" in nodes]
