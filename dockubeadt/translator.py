@@ -20,11 +20,12 @@ def translate(file, stream = False):
     
     if type == 'kubernetes-manifest':
         manifests = yaml.safe_load_all(data)
-        adt = translate_dict(type, manifests)
+        mdt = translate_dict(type, manifests)
     elif type == 'docker-compose':
         composes = yaml.safe_load(data)
-        adt = translate_dict(type, composes)
+        mdt = translate_dict(type, composes)
 
+    adt = "topology_template:\n" + mdt
     return adt
 
 def translate_dict(deployment_format, topology_metadata, log: logging = log):

@@ -14,11 +14,10 @@ def main(file):
 
     FILE is the path to a single/multi compose files or K8s manifests (YAML)"""
     try:
-        mdt = translate(file)
+        adt = translate(file)
         out_path = Path(f"{os.getcwd()}/adt-micado.yaml")
         with open(out_path, "w") as out_file:
-            out_file.writelines("topology_template:\n")
-            out_file.writelines(mdt)
+            out_file.writelines(adt)
     except ScannerError:
         print("[Errno 1] Not a valid YAML file")
         sys.exit(1)
