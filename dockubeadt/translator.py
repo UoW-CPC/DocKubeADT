@@ -39,6 +39,8 @@ def translate_dict(deployment_format, topology_metadata):
         mdt = translate_manifest(manifests)
         cmd = "rm {}*".format(container_name)
         os.system(cmd)
+    else: 
+        raise ValueError("The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'")
 
     return mdt
 
