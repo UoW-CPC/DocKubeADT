@@ -118,7 +118,7 @@ def translate_manifest(manifests):
         adt: ADT in dictionary format
     """
     adt = _get_default_adt()
-    node_templates = adt["topology_template"]["node_templates"]
+    node_templates = adt["node_templates"]
     log.info("Translating the manifest")
     
     _transform(manifests, 'micado', node_templates)
@@ -175,7 +175,7 @@ def _get_default_adt():
         dict: ADT boilerplate
     """
     return {
-        "topology_template": {"node_templates": {}},
+        "node_templates": {},
     }
 
 
