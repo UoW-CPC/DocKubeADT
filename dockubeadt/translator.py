@@ -5,7 +5,7 @@ import logging
 from io import StringIO
 
 logging.basicConfig(filename="std.log",format='%(asctime)s %(message)s',filemode='w')
-log=logging.getLogger()
+log=logging.getLogger("dockubeadt")
 log.setLevel(logging.INFO)
 
 def translate(file, stream = False):
