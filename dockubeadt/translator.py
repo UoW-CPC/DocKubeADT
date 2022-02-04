@@ -212,7 +212,7 @@ def _transform(
 def _add_volume(spec, conf):
     containers = spec["containers"]
     for container in containers:
-        volume_mounts = container["volumeMounts"]
+        volume_mounts = container.setdefault("volumeMounts", [])
 
         file = conf["file_path"]
         in_path = Path(file)
@@ -225,7 +225,7 @@ def _add_volume(spec, conf):
 
         volume_mounts.append(volume_mount)
 
-    volumes = spec["volumes"]
+    volumes = spec.setdefault("volumes", [])
     volumes.append({"name": in_path.stem, "configMap": {"name": in_path.stem}})
 
 
