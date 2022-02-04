@@ -211,19 +211,19 @@ def _transform(
 
 def _add_volume(spec, conf):
     containers = spec["containers"]
-    container = containers[0]
-    volume_mounts = container["volumeMounts"]
+    for container in containers:
+        volume_mounts = container["volumeMounts"]
 
-    file = conf["file_path"]
-    in_path = Path(file)
-    directory = os.path.dirname(file)
-    volume_mount = {"name": in_path.stem, "mountPath": directory}
-    if (conf.get("mountPropagation") is not None) and (
-        conf.get("mountPropagation")
-    ):
-        volume_mount["mountPropagation"] = conf["mountPropagation"]
+        file = conf["file_path"]
+        in_path = Path(file)
+        directory = os.path.dirname(file)
+        volume_mount = {"name": in_path.stem, "mountPath": directory}
+        if (conf.get("mountPropagation") is not None) and (
+            conf.get("mountPropagation")
+        ):
+            volume_mount["mountPropagation"] = conf["mountPropagation"]
 
-    volume_mounts.append(volume_mount)
+        volume_mounts.append(volume_mount)
 
     volumes = spec["volumes"]
     volumes.append({"name": in_path.stem, "configMap": {"name": in_path.stem}})
