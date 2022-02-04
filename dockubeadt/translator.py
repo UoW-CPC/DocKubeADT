@@ -164,18 +164,12 @@ def _add_configdata(configurationData, node_templates):
                         "inputs": {
                             "apiVersion": "v1",
                             "kind": "ConfigMap",
-                            "metadata": "sample",
-                            "data": "sample",
+                            "metadata": f"{in_path.stem}",
+                            "data": {f"{in_path.name}": f"{file_content}"},
                         }
                     }
                 }
             },
-        }
-        configmap["interfaces"]["Kubernetes"]["create"]["inputs"][
-            "metadata"
-        ] = {"name": in_path.stem}
-        configmap["interfaces"]["Kubernetes"]["create"]["inputs"]["data"] = {
-            in_path.name: file_content
         }
         node_templates[in_path.stem] = configmap
 
