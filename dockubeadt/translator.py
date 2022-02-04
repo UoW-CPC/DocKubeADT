@@ -196,38 +196,36 @@ def _transform(
             raise ValueError("Manifest file has more than one workload")
         node_name = name or f"{filename}-{ix}"
         kind = manifest["kind"].lower()
-        if (configurationData is not None) and (
-            kind in ["deployment", "pod", "statefulset", "daemonset"]
-        ):
-            spec = manifest["spec"]
-            if spec.get("containers") is None:
-                new_spec = spec["template"]["spec"]
-                _add_volume(new_spec, configurationData)
-            else:
-                _add_volume(spec, configurationData)
+
+        if kind in ["deployment", "pod", "statefulset", "daemonset"]:
+            for conf in configurationData:
+                spec = manifest["spec"]
+                if spec.get("containers") is None:
+                    new_spec = spec["template"]["spec"]
+                    _add_volume(new_spec, conf)
+                else:
+                    _add_volume(spec, conf)
 
         node_templates[node_name] = _to_node(manifest)
 
 
-def _add_volume(spec, configurationData):
+def _add_volume(spec, conf):
     containers = spec["containers"]
     container = containers[0]
     volume_mounts = container["volumeMounts"]
     volumes = spec["volumes"]
-    for conf in configurationData:
-        file = conf["file_path"]
-        in_path = Path(file)
-        directory = os.path.dirname(file)
-        volume_mount = {"name": in_path.stem, "mountPath": directory}
-        if (conf.get("mountPropagation") is not None) and (
-            conf.get("mountPropagation")
-        ):
-            volume_mount["mountPropagation"] = conf["mountPropagation"]
 
-        volume_mounts.append(volume_mount)
-        volumes.append(
-            {"name": in_path.stem, "configMap": {"name": in_path.stem}}
-        )
+    file = conf["file_path"]
+    in_path = Path(file)
+    directory = os.path.dirname(file)
+    volume_mount = {"name": in_path.stem, "mountPath": directory}
+    if (conf.get("mountPropagation") is not None) and (
+        conf.get("mountPropagation")
+    ):
+        volume_mount["mountPropagation"] = conf["mountPropagation"]
+
+    volume_mounts.append(volume_mount)
+    volumes.append({"name": in_path.stem, "configMap": {"name": in_path.stem}})
 
 
 def _get_name(manifest):
