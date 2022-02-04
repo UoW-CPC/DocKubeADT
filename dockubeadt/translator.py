@@ -39,6 +39,7 @@ def translate_dict(
     log: logging = log,
     configurationData: list = None,
 ):
+    configurationData = configurationData if configurationData else []
     if deployment_format == "kubernetes-manifest":
         mdt = translate_manifest(topology_metadata, configurationData)
     elif deployment_format == "docker-compose":
