@@ -3,6 +3,7 @@ import os
 import ruamel.yaml as yaml
 import logging
 from io import StringIO
+from pathlib import Path
 
 logging.basicConfig(filename="std.log",format='%(asctime)s %(message)s',filemode='w')
 log=logging.getLogger("dockubeadt")
@@ -28,9 +29,9 @@ def translate(file, stream = False):
     adt = "topology_template:\n" + mdt
     return adt
 
-def translate_dict(deployment_format, topology_metadata, log: logging = log):
+def translate_dict(deployment_format, topology_metadata, log: logging = log, configurationData: list = None):
     if deployment_format == 'kubernetes-manifest':
-        mdt = translate_manifest(topology_metadata)
+        mdt = translate_manifest(topology_metadata,configurationData)
     elif deployment_format == 'docker-compose':
         container_name = validate_compose(topology_metadata)
         convert_doc_to_kube(topology_metadata,container_name)
@@ -38,7 +39,7 @@ def translate_dict(deployment_format, topology_metadata, log: logging = log):
         with open(file_name, "r") as f:
             data_new = f.read()
         manifests = yaml.safe_load_all(data_new)
-        mdt = translate_manifest(manifests)
+        mdt = translate_manifest(manifests,configurationData)
         cmd = "rm {}*".format(container_name)
         os.system(cmd)
     else: 
@@ -112,7 +113,7 @@ def convert_doc_to_kube(dicts,container_name):
 
     os.remove('compose.yaml')
 
-def translate_manifest(manifests):
+def translate_manifest(manifests, configurationData: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -122,13 +123,25 @@ def translate_manifest(manifests):
     """
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
-    log.info("Translating the manifest")
-    
-    _transform(manifests, 'micado', node_templates)
 
+    if(configurationData is not None):
+        _add_configdata(configurationData, node_templates)
+    
+    log.info("Translating the manifest")   
+    _transform(manifests, 'micado', node_templates, configurationData)
     return adt
 
-def _transform(manifests, filename, node_templates):
+def _add_configdata(configurationData, node_templates):
+    for conf in configurationData:
+        file = conf['file_path']
+        in_path = Path(file)
+        file_content = conf['file_content']
+        configmap = {'type': 'tosca.nodes.MiCADO.Kubernetes', 'interfaces': {'Kubernetes': {'create': {'inputs': {'apiVersion': 'v1', 'kind': 'ConfigMap', 'metadata': 'sample', 'data': 'sample'}}}}}
+        configmap['interfaces']['Kubernetes']['create']['inputs']['metadata'] = {'name':in_path.stem}
+        configmap['interfaces']['Kubernetes']['create']['inputs']['data'] ={in_path.name:file_content}
+        node_templates[in_path.stem] = configmap
+
+def _transform(manifests, filename, node_templates, configurationData: list = None):
     """Transforms a single manifest into a node template
 
     Args:
@@ -145,9 +158,33 @@ def _transform(manifests, filename, node_templates):
             log.info("Manifest file can't have more than one workloads. Exiting ...")
             raise ValueError("Manifest file has more than one workload")
         node_name = name or f"{filename}-{ix}"
+        kind = manifest["kind"].lower()
+        if (configurationData is not None) and (kind in ['deployment','pod','statefulset','daemonset']):
+            spec = manifest['spec']
+            if spec.get('containers') is None:
+                new_spec = spec['template']['spec']
+                _add_volume(new_spec, configurationData)
+            else:
+                _add_volume(spec, configurationData)
+        
         node_templates[node_name] = _to_node(manifest)
 
-
+def _add_volume(spec, configurationData):
+    containers = spec['containers']
+    container = containers[0]
+    volume_mounts = container['volumeMounts']
+    volumes = spec['volumes']
+    for conf in configurationData:
+        file = conf['file_path']
+        in_path = Path(file)
+        directory = os.path.dirname(file)
+        volume_mount = {'name':in_path.stem,'mountPath':directory}
+        if (conf.get('mountPropagation') is not None) and (conf.get('mountPropagation')):
+            volume_mount['mountPropagation'] = conf['mountPropagation']
+            
+        volume_mounts.append(volume_mount)
+        volumes.append({'name':in_path.stem, 'configMap':{'name':in_path.stem}})
+        
 def _get_name(manifest):
     """Returns the name from the manifest metadata
 
