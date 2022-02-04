@@ -213,7 +213,6 @@ def _add_volume(spec, conf):
     containers = spec["containers"]
     container = containers[0]
     volume_mounts = container["volumeMounts"]
-    volumes = spec["volumes"]
 
     file = conf["file_path"]
     in_path = Path(file)
@@ -225,6 +224,8 @@ def _add_volume(spec, conf):
         volume_mount["mountPropagation"] = conf["mountPropagation"]
 
     volume_mounts.append(volume_mount)
+
+    volumes = spec["volumes"]
     volumes.append({"name": in_path.stem, "configMap": {"name": in_path.stem}})
 
 
