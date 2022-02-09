@@ -36,7 +36,6 @@ def translate(file, stream=False):
 def translate_dict(
     deployment_format,
     topology_metadata,
-    log: logging = log,
     configurationData: list = None,
 ):
     configurationData = configurationData if configurationData else []
