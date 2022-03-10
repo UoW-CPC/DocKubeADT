@@ -164,7 +164,7 @@ def _add_configdata(configurationData, node_templates):
                         "inputs": {
                             "apiVersion": "v1",
                             "kind": "ConfigMap",
-                            "metadata": f"{in_path.stem}",
+                            "metadata": {"name": f"{in_path.stem}"},
                             "data": {f"{in_path.name}": f"{file_content}"},
                         }
                     }
