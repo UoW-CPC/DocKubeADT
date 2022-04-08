@@ -1,16 +1,11 @@
 import os
 
 import ruamel.yaml as yaml
-import logging
 from io import StringIO
 from pathlib import Path
 
-logging.basicConfig(
-    filename="std.log", format="%(asctime)s %(message)s", filemode="w"
-)
-log = logging.getLogger("dockubeadt")
-log.setLevel(logging.INFO)
-
+import subprocess,sys,re
+INVOKED_AS_LIB=False
 
 def translate(file, stream=False):
     if not stream:
@@ -38,6 +33,8 @@ def translate_dict(
     topology_metadata,
     configurationData: list = None,
 ):
+    global INVOKED_AS_LIB
+    INVOKED_AS_LIB=True
     configurationData = configurationData if configurationData else []
     if deployment_format == "kubernetes-manifest":
         mdt = translate_manifest(topology_metadata, configurationData)
@@ -50,7 +47,7 @@ def translate_dict(
         manifests = yaml.safe_load_all(data_new)
         mdt = translate_manifest(manifests, configurationData)
         cmd = "rm {}*".format(container_name)
-        os.system(cmd)
+        run_command(cmd)
     else:
         raise ValueError(
             "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
@@ -66,7 +63,7 @@ def translate_dict(
     for line in adt_str.splitlines():
         adt = adt + "  " + line + "\n"
     adt = adt[: adt.rfind("\n")]
-    log.info("Translation completed successfully")
+    print("Translation completed successfully")
 
     return adt
 
@@ -99,13 +96,25 @@ def validate_compose(dicts):
     """
     dict = dicts["services"]
     if len(dict) > 1:
-        log.info(
+        print(
             "Docker compose file can't have more than one containers. Exiting..."
         )
         raise ValueError("Docker compose file has more than one container")
     name = next(iter(dict))
     return name
 
+def run_command(cmd):
+    global INVOKED_AS_LIB
+    if INVOKED_AS_LIB:
+        sys.stdout.flush()
+        with subprocess.Popen(cmd, 
+                stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True) as p:
+            for line in p.stdout:
+                print(re.sub(r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))', '', line.decode()),end="")
+                sys.stdout.flush()
+        return p.returncode
+    else:
+        os.system(cmd)
 
 def convert_doc_to_kube(dicts, container_name):
     """Check whether the given file Docker Compose contains more than one containers
@@ -121,14 +130,15 @@ def convert_doc_to_kube(dicts, container_name):
     with open("compose.yaml", "w") as out_file:
         yaml.round_trip_dump(dicts, out_file)
     cmd = "kompose convert -f compose.yaml --volumes hostPath"
-    status = os.system(cmd)
+    status = run_command(cmd)
+
     if status != 0:
         raise ValueError("Docker Compose has a validation error")
-    cmd = "count=0;for file in `ls {}-*`; do if [ $count -eq 0 ]; then cat $file >{}.yaml; count=1; else echo '---'>>{}.yaml; cat $file >>{}.yaml; fi; done".format(
+    
+    cmd = "count=0; for file in `ls {}-*`; do if [ $count -eq 0 ]; then cat $file >{}.yaml; count=1; else echo '---'>>{}.yaml; cat $file >>{}.yaml; fi; done".format(
         container_name, container_name, container_name, container_name
     )
-    os.system(cmd)
-
+    run_command(cmd)
     os.remove("compose.yaml")
 
 
@@ -146,7 +156,7 @@ def translate_manifest(manifests, configurationData: list = None):
     if configurationData is not None:
         _add_configdata(configurationData, node_templates)
 
-    log.info("Translating the manifest")
+    print("Translating the manifest")
     _transform(manifests, "micado", node_templates, configurationData)
     return adt
 
@@ -190,7 +200,7 @@ def _transform(
         if count == 1:
             wln = wln + 1
         if wln > 1:
-            log.info(
+            print(
                 "Manifest file can't have more than one workloads. Exiting ..."
             )
             raise ValueError("Manifest file has more than one workload")
