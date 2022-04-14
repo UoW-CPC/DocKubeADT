@@ -130,6 +130,7 @@ def check_bind_propagation(container):
                     if propagation == "rslave":
                         mountPropagation = "HostToContainer"
                     volume_data.append({"id":i, "mountPath":target, "mountPropagation":mountPropagation})
+            i = i+1
 
     return volume_data
 
