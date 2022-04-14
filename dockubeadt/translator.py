@@ -1,4 +1,5 @@
 import os
+from typing import Container
 
 import ruamel.yaml as yaml
 from io import StringIO
@@ -36,16 +37,19 @@ def translate_dict(
     global INVOKED_AS_LIB
     INVOKED_AS_LIB=True
     configurationData = configurationData if configurationData else []
+    volumeData = []
     if deployment_format == "kubernetes-manifest":
-        mdt = translate_manifest(topology_metadata, configurationData)
+        mdt = translate_manifest(topology_metadata, volumeData, configurationData)
     elif deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
+        container = topology_metadata["services"][container_name]
+        volumeData = check_bind_propagation(container)
         convert_doc_to_kube(topology_metadata, container_name)
         file_name = "{}.yaml".format(container_name)
         with open(file_name, "r") as f:
             data_new = f.read()
         manifests = yaml.safe_load_all(data_new)
-        mdt = translate_manifest(manifests, configurationData)
+        mdt = translate_manifest(manifests, volumeData, configurationData)
         cmd = "rm {}*".format(container_name)
         run_command(cmd)
     else:
@@ -86,7 +90,7 @@ def check_type(dicts):
 
 
 def validate_compose(dicts):
-    """Check whether the given file Docker Compose contains more than one containers
+    """Check whether the given Docker Compose file contains more than one containers
 
     Args:
         dicts (dictionary): Dictionary containing Docker Compose contents
@@ -102,6 +106,32 @@ def validate_compose(dicts):
         raise ValueError("Docker compose file has more than one container")
     name = next(iter(dict))
     return name
+
+def check_bind_propagation(container):
+    """Check whether a container has volume bind propagation
+
+    Args:
+        dicts (dictionary): Dictionary containing the container details
+
+    Returns:
+        volume_data: details regarding the bind propagation
+    """
+    volumes = container.get("volumes")
+    volume_data = []
+    i = 0
+    if volumes is not None:
+        for volume in volumes:
+            if (type(volume) is dict):
+                if (volume.get("bind") is not None):
+                    propagation = volume["bind"]["propagation"]
+                    target = volume['target']
+                    if propagation == "rshared":
+                        mountPropagation = "Bidirectional"
+                    if propagation == "rslave":
+                        mountPropagation = "HostToContainer"
+                    volume_data.append({"id":i, "mountPath":target, "mountPropagation":mountPropagation})
+
+    return volume_data
 
 def run_command(cmd):
     global INVOKED_AS_LIB
@@ -142,7 +172,7 @@ def convert_doc_to_kube(dicts, container_name):
     os.remove("compose.yaml")
 
 
-def translate_manifest(manifests, configurationData: list = None):
+def translate_manifest(manifests, volumeData: list = None, configurationData: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -157,7 +187,7 @@ def translate_manifest(manifests, configurationData: list = None):
         _add_configdata(configurationData, node_templates)
 
     print("Translating the manifest")
-    _transform(manifests, "micado", node_templates, configurationData)
+    _transform(manifests, "micado", node_templates, volumeData, configurationData)
     return adt
 
 
@@ -176,7 +206,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, filename, node_templates, configurationData: list = None
+    manifests, filename, node_templates, volumeData: list = None, configurationData: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -199,6 +229,15 @@ def _transform(
         kind = manifest["kind"].lower()
 
         if kind in ["deployment", "pod", "statefulset", "daemonset"]:
+
+            for vol in volumeData:
+                spec = manifest["spec"]
+                if spec.get("containers") is None:
+                    new_spec = spec["template"]["spec"]
+                    _update_volume(new_spec, vol)
+                else:
+                    _update_volume(spec, vol)
+
             for conf in configurationData:
                 spec = manifest["spec"]
                 if spec.get("containers") is None:
@@ -209,6 +248,13 @@ def _transform(
 
         node_templates[node_name] = _to_node(manifest)
 
+def _update_volume(spec, vol):
+    containers = spec["containers"]
+    for container in containers:
+        volume_mounts = container.setdefault("volumeMounts", [])
+        volume_mount = volume_mounts[vol['id']]
+        if volume_mount["mountPath"] == vol["mountPath"]:
+            volume_mount["mountPropagation"] = vol["mountPropagation"]
 
 def _add_volume(spec, conf):
     containers = spec["containers"]
