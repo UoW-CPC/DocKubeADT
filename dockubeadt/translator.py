@@ -1,5 +1,4 @@
 import os
-from typing import Container
 
 import ruamel.yaml as yaml
 from io import StringIO
