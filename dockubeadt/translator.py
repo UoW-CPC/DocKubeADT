@@ -167,19 +167,10 @@ def _add_configdata(configurationData, node_templates):
         in_path = Path(file)
         file_content = conf["file_content"]
         configmap = {
-            "type": "tosca.nodes.MiCADO.Kubernetes",
-            "interfaces": {
-                "Kubernetes": {
-                    "create": {
-                        "inputs": {
-                            "apiVersion": "v1",
-                            "kind": "ConfigMap",
-                            "metadata": {"name": f"{in_path.stem}"},
-                            "data": {f"{in_path.name}": f"{file_content}"},
-                        }
-                    }
-                }
-            },
+            "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
+            "properties": {
+                "data": {f"{in_path.name}": f"{file_content}"}
+            }
         }
         node_templates[in_path.stem] = configmap
 
