@@ -230,7 +230,7 @@ def _transform(
 
         if kind in ["deployment", "pod", "statefulset", "daemonset"]:
 
-            spec = manifest["spec"]
+            spec = manifest.get("spec")
             if spec.get("containers") is None:
                 new_spec = spec["template"]["spec"]
                 _update_port(new_spec)
@@ -256,7 +256,7 @@ def _transform(
         node_templates[node_name] = _to_node(manifest)
 
 def _update_port(spec):
-    containers = spec["containers"]
+    containers = spec.get("containers")
     for container in containers:
         if container.get("ports") is not None:
             ports = container["ports"]
