@@ -37,18 +37,20 @@ def translate_dict(
     INVOKED_AS_LIB=True
     configurationData = configurationData if configurationData else []
     volumeData = []
+    portData = []
     if deployment_format == "kubernetes-manifest":
-        mdt = translate_manifest(topology_metadata, volumeData, configurationData)
+        mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
     elif deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
         volumeData = check_bind_propagation(container)
+        portData = check_long_syntax_port(container)
         convert_doc_to_kube(topology_metadata, container_name)
         file_name = "{}.yaml".format(container_name)
         with open(file_name, "r") as f:
             data_new = f.read()
         manifests = yaml.safe_load_all(data_new)
-        mdt = translate_manifest(manifests, volumeData, configurationData)
+        mdt = translate_manifest(manifests, volumeData, portData, configurationData)
         cmd = "rm {}*".format(container_name)
         run_command(cmd)
     else:
@@ -133,6 +135,29 @@ def check_bind_propagation(container):
 
     return volume_data
 
+def check_long_syntax_port(container):
+    """Check whether a container has a long syntax for port binding
+
+    Args:
+        dicts (dictionary): Dictionary containing the container details
+
+    Returns:
+        port_data: details of port mapping to add the hostPort in manifest
+    """
+    ports = container.get("ports")
+    port_data = []
+    i = 0
+    if ports is not None:
+        for port in ports:
+            if (type(port) is dict):
+                long_syntax = port
+                short_syntax = f"{long_syntax['published']}:{long_syntax['target']}{'/udp' if long_syntax.get('protocol') == 'udp' else ''}"
+                ports[i] = short_syntax
+                if long_syntax.get("mode") == "host":
+                    port_data.append({"id":i, "containerport":long_syntax['target'], "hostport":long_syntax['published']})
+            i = i+1
+    return port_data
+
 def run_command(cmd):
     global INVOKED_AS_LIB
     if INVOKED_AS_LIB:
@@ -172,7 +197,7 @@ def convert_doc_to_kube(dicts, container_name):
     os.remove("compose.yaml")
 
 
-def translate_manifest(manifests, volumeData: list = None, configurationData: list = None):
+def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -182,12 +207,11 @@ def translate_manifest(manifests, volumeData: list = None, configurationData: li
     """
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
-
     if configurationData is not None:
         _add_configdata(configurationData, node_templates)
 
     print("Translating the manifest")
-    _transform(manifests, "micado", node_templates, volumeData, configurationData)
+    _transform(manifests, "micado", node_templates, volumeData, portData, configurationData)
     return adt
 
 
@@ -206,7 +230,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, filename, node_templates, volumeData: list = None, configurationData: list = None
+    manifests, filename, node_templates, volumeData: list = None, portData: list = None, configurationData: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -215,6 +239,7 @@ def _transform(
         filename (string): Name of the file
         node_templates (dict): `node_templates` key of the ADT
     """
+
     wln = 0
     for ix, manifest in enumerate(manifests):
         name, count = _get_name(manifest)
@@ -238,6 +263,14 @@ def _transform(
                 else:
                     _update_volume(spec, vol)
 
+            for port in portData:
+                spec = manifest["spec"]
+                if spec.get("containers") is None:
+                    new_spec = spec["template"]["spec"]
+                    _update_port(new_spec, port)
+                else:
+                    _update_port(spec, port)
+
             for conf in configurationData:
                 spec = manifest["spec"]
                 if spec.get("containers") is None:
@@ -255,6 +288,14 @@ def _update_volume(spec, vol):
         volume_mount = volume_mounts[vol['id']]
         if volume_mount["mountPath"] == vol["mountPath"]:
             volume_mount["mountPropagation"] = vol["mountPropagation"]
+
+def _update_port(spec, port):
+    containers = spec["containers"]
+    for container in containers:
+        ports = container.setdefault("ports", [])
+        update_port = ports[port['id']]
+        if update_port["containerPort"] == port["containerport"]:
+            update_port["hostPort"] = port["hostport"]
 
 def _add_volume(spec, conf):
     containers = spec["containers"]
