@@ -8,7 +8,7 @@ from dockubeadt.translator import translate
 
 def test_basic_translation():
     manifest = {
-        "kind": "Pod",
+        "kind": "Service",
         "metadata": {"name": "my-pod-name"},
         "apiVersion": "v1",
     }
