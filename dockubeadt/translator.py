@@ -154,7 +154,7 @@ def check_long_syntax_port(container):
                 short_syntax = f"{long_syntax['published']}:{long_syntax['target']}{'/udp' if long_syntax.get('protocol') == 'udp' else ''}"
                 ports[i] = short_syntax
                 if long_syntax.get("mode") == "host":
-                    port_data.append({"id":i, "containerport":long_syntax['target'], "hostport":long_syntax['published']})
+                    port_data.append({"id":i, "containerport":int(long_syntax['target']), "hostport":int(long_syntax['published'])})
             i = i+1
     return port_data
 
