@@ -33,6 +33,19 @@ Or skip the install and simply:
 
 Generated output file will be saved to your current directory as `adt-FILENAME.YAML`
 
+## Things to note(Docker Compose)
+
+- All the volume mounts in docker compose are by default converted to 'hostPath' volume mounts in MiCADO ADT
+- Use the `restart` property in docker compose to manage the container restarts. The values can be `always`, `on-failure` or `none`.
+- Use the long port syntax in docker-compose for services that needs to be exposed externally using a domain name or public IP. A sample of long port syntax is given below.
+```
+    ports:
+     - target: 8080
+       published:8080
+       protocol: tcp
+       mode: host
+```
+
 ## Docker Compose Variables
 
 The variables in docker compose file needs to be in these form:
