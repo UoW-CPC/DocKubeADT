@@ -273,6 +273,9 @@ def _transform(
 
             for conf in configurationData:
                 spec = manifest["spec"]
+                if "mount_propagation" in conf:
+                # Handle AMR snake_case naming
+                    conf["mountPropagation"] = conf.pop("mount_propagation")
                 if spec.get("containers") is None:
                     new_spec = spec["template"]["spec"]
                     _add_volume(new_spec, conf)
