@@ -226,7 +226,9 @@ def _add_configdata(configurationData, node_templates):
                 "data": {f"{in_path.name}": f"{file_content}"}
             }
         }
-        node_templates[in_path.name.replace(".", "-").replace("_", "-").replace(" ", "-")] = configmap
+        node_templates[
+            in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        ] = configmap
 
 
 def _transform(
