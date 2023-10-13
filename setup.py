@@ -1,14 +1,20 @@
+import os
 from setuptools import setup, find_packages
 
 with open("README.md") as file:
     long_description = file.read()
+
+about = {}
+here = os.path.abspath(os.path.dirname(__file__))
+with open(os.path.join(here, "dockubeadt", "__version__.py"), "r", "utf-8") as f:
+    exec(f.read(), about)
 
 setup(
     name="dockubeadt",
     description="Translate Docker compose and k8s manifests to a MiCADO ADT",
     long_description=long_description,
     long_description_content_type="text/markdown",
-    version="0.2.0",
+    version=about["__version__"],
     author="Resmi Arjun / Jay DesLauriers",
     url="https://github.com/UoW-CPC/DocKubeADT",
     project_urls={
