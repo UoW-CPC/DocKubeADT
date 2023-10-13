@@ -1,10 +1,14 @@
 import os
-
-import ruamel.yaml as yaml
+import re
+import subprocess
+import sys
 from io import StringIO
 from pathlib import Path
 
-import subprocess,sys,re
+import ruamel.yaml as yaml
+
+from . import __version__
+
 INVOKED_AS_LIB=False
 
 def translate(file, stream=False):
@@ -33,6 +37,7 @@ def translate_dict(
     topology_metadata,
     configurationData: list = None,
 ):
+    print(f"Running DocKubeADT v{__version__}")
     global INVOKED_AS_LIB
     INVOKED_AS_LIB=True
     configurationData = configurationData if configurationData else []
