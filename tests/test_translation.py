@@ -1,10 +1,11 @@
 import tempfile
 
 import pytest
-import ruamel.yaml as yaml
+from ruamel.yaml import YAML
 
 from dockubeadt.translator import translate
 
+yaml = YAML()
 
 def test_basic_translation():
     manifest = {
@@ -14,11 +15,11 @@ def test_basic_translation():
     }
 
     with tempfile.NamedTemporaryFile("r+") as file:
-        yaml.safe_dump(manifest, file)
+        yaml.dump(manifest, file)
         file.seek(0)
         data = translate(file.name)
 
-    yaml_adt = yaml.safe_load(data)
+    yaml_adt = yaml.load(data)
     nodes = yaml_adt["topology_template"]["node_templates"]
     assert "my-pod-name-pod" in nodes
 
@@ -27,7 +28,7 @@ def test_multi_translation():
     with open("tests/data/hello.yaml") as file:
         data = translate(file.name)
 
-    yaml_adt = yaml.safe_load(data)
+    yaml_adt = yaml.load(data)
     nodes = yaml_adt["topology_template"]["node_templates"]
     assert all(
         ["busybox-sleep-less-service" in nodes, "busybox-sleep-pod" in nodes]

@@ -5,11 +5,13 @@ import sys
 from io import StringIO
 from pathlib import Path
 
-import ruamel.yaml as yaml
+from ruamel.yaml import YAML
 
 from . import __version__
 
 INVOKED_AS_LIB=False
+
+yaml = YAML()
 
 def translate(file, stream=False):
     if not stream:
@@ -18,14 +20,14 @@ def translate(file, stream=False):
     else:
         data = file
 
-    dicts = yaml.safe_load_all(data)
+    dicts = yaml.load_all(data)
     type = check_type(dicts)
 
     if type == "kubernetes-manifest":
-        manifests = yaml.safe_load_all(data)
+        manifests = yaml.load_all(data)
         mdt = translate_dict(type, manifests)
     elif type == "docker-compose":
-        composes = yaml.safe_load(data)
+        composes = yaml.load(data)
         mdt = translate_dict(type, composes)
 
     adt = "topology_template:\n" + mdt
@@ -54,7 +56,7 @@ def translate_dict(
         file_name = "{}.yaml".format(container_name)
         with open(file_name, "r") as f:
             data_new = f.read()
-        manifests = yaml.safe_load_all(data_new)
+        manifests = yaml.load_all(data_new)
         mdt = translate_manifest(manifests, volumeData, portData, configurationData)
         cmd = "rm {}*".format(container_name)
         run_command(cmd)
@@ -63,7 +65,7 @@ def translate_dict(
             "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
         )
 
-    _yaml = yaml.YAML()
+    _yaml = YAML()
     _yaml.preserve_quotes = True
     _yaml.width = 800
     dt_stream = StringIO()
@@ -188,7 +190,7 @@ def convert_doc_to_kube(dicts, container_name):
     if dicts["version"] == "3.9":
         dicts["version"] = "3.7"
     with open("compose.yaml", "w") as out_file:
-        yaml.round_trip_dump(dicts, out_file)
+        yaml.dump(dicts, out_file)
     cmd = "kompose convert -f compose.yaml --volumes hostPath"
     status = run_command(cmd)
 
