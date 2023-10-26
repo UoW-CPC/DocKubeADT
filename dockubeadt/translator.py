@@ -314,8 +314,9 @@ def _add_volume(spec, conf):
 
         file = conf["file_path"]
         in_path = Path(file)
+        cfg_name = in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
         directory = os.path.dirname(file)
-        volume_mount = {"name": in_path.stem, "mountPath": directory}
+        volume_mount = {"name": cfg_name, "mountPath": directory}
         if (conf.get("mountPropagation") is not None) and (
             conf.get("mountPropagation")
         ):
@@ -324,7 +325,7 @@ def _add_volume(spec, conf):
         volume_mounts.append(volume_mount)
 
     volumes = spec.setdefault("volumes", [])
-    volumes.append({"name": in_path.stem, "configMap": {"name": in_path.stem}})
+    volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
 
 
 def _get_name(manifest):
