@@ -1,2 +1,2 @@
-ruamel.yaml
-click
+ruamel.yaml~=0.18.2
+click~=8.1

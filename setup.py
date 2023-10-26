@@ -29,7 +29,7 @@ setup(
         "Programming Language :: Python :: Implementation :: CPython",
     ],
     packages=find_packages(exclude=['tests']),
-    install_requires=["ruamel.yaml", "click"],
+    install_requires=["ruamel.yaml~=0.18.2", "click~=8.1"],
 
     python_requires=">=3.6",
     entry_points={
