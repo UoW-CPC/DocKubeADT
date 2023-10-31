@@ -314,11 +314,13 @@ def _add_volume(spec, conf):
     for container in containers:
         volume_mounts = container.setdefault("volumeMounts", [])
 
+        # Using subPath here to always mount files individually.
+        # (DIGITbrain configuration files are always single file ConfigMaps.)
         file = conf["file_path"]
         in_path = Path(file)
         cfg_name = in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        directory = os.path.dirname(file)
-        volume_mount = {"name": cfg_name, "mountPath": directory}
+        filename = os.path.basename(file)
+        volume_mount = {"name": cfg_name, "mountPath": file, "subPath": filename}
         if (conf.get("mountPropagation") is not None) and (
             conf.get("mountPropagation")
         ):
