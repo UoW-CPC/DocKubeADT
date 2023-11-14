@@ -47,13 +47,8 @@ def translate_dict(
         container = topology_metadata["services"][container_name]
         volumeData = check_bind_propagation(container)
         portData = check_long_syntax_port(container)
-        convert_doc_to_kube(topology_metadata, container_name)
-        file_name = "{}.yaml".format(container_name)
-        with open(file_name, "r") as f:
-            data_new = f.read()
-        manifests = yaml.load_all(data_new)
+        manifests = convert_doc_to_kube(topology_metadata, container_name)
         mdt = translate_manifest(manifests, volumeData, portData, configurationData)
-        os.remove(file_name)
     else:
         raise ValueError(
             "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
@@ -171,7 +166,7 @@ def convert_doc_to_kube(dicts, container_name):
         dicts (dictionary): Dictionary containing Docker Compose file
 
     Returns:
-        string: name of the container
+        dict: Kubernetes manifests
     """
     out_file = "{container_name}.yaml"
     with tempfile.NamedTemporaryFile("w") as tmpfile:
@@ -188,6 +183,12 @@ def convert_doc_to_kube(dicts, container_name):
 
     if status != 0:
         raise ValueError(f"Docker Compose has a validation error")
+    
+    with open(out_file, "r") as f:
+        manifests = yaml.load_all(f.read())
+    os.remove(out_file)
+
+    return manifests
 
 
 def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
