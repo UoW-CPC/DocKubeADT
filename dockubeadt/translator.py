@@ -2,7 +2,7 @@ import os
 import re
 import subprocess
 import sys
-import tempfile
+from tempfile import NamedTemporaryFile
 from io import StringIO
 from pathlib import Path
 
@@ -163,7 +163,7 @@ def convert_doc_to_kube(dicts, container_name):
         dict: Kubernetes manifests
     """
     out_file = f"{container_name}.yaml"
-    with tempfile.NamedTemporaryFile("w") as tmpfile:
+    with NamedTemporaryFile("w", dir=os.getcwd()) as tmpfile:
         yaml.dump(dicts, tmpfile)
         cmd = f"""
             kompose convert \
