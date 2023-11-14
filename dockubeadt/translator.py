@@ -194,6 +194,7 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
     Returns:
         adt: ADT in dictionary format
     """
+    manifests = list(manifests)
     if count_workloads(manifests) > 1:
         raise ValueError("Manifest file cannot have more than one workload.")
 
@@ -203,7 +204,7 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
         _add_configdata(configurationData, node_templates)
 
     print("Translating the manifest")
-    _transform(manifests, "micado", node_templates, volumeData, portData, configurationData)
+    _transform(manifests, node_templates, volumeData, portData, configurationData)
     return adt
 
 def count_workloads(manifests):
@@ -211,7 +212,7 @@ def count_workloads(manifests):
         [
             manifest for manifest
             in manifests
-            if manifest.lower() in WORKLOADS
+            if manifest["kind"].lower() in WORKLOADS
         ]
     )
 
@@ -232,7 +233,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, filename, node_templates, volume_data: list = None, portData: list = None, configurationData: list = None
+    manifests, node_templates, volume_data: list = None, portData: list = None, configurationData: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -248,33 +249,35 @@ def _transform(
         kind = manifest["kind"].lower()
         node_name = f"{name}-{kind}"
 
-        if kind in ["deployment", "pod", "statefulset", "daemonset"]:
+        if kind not in WORKLOADS:
+            node_templates[node_name] = _to_node(manifest)
+            continue
 
+        spec = manifest["spec"]
+        if "containers" not in spec:
+            spec = spec["template"]["spec"]
+        container = spec["containers"][0]
+
+        _update_volumes(container, volume_data)
+
+        for port in portData:
             spec = manifest["spec"]
-            if "containers" not in spec:
-                spec = spec["template"]["spec"]
-            container = spec["containers"][0]
+            if spec.get("containers") is None:
+                new_spec = spec["template"]["spec"]
+                _update_port(new_spec, port)
+            else:
+                _update_port(spec, port)
 
-            _update_volumes(container, volume_data)
-
-            for port in portData:
-                spec = manifest["spec"]
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _update_port(new_spec, port)
-                else:
-                    _update_port(spec, port)
-
-            for conf in configurationData:
-                spec = manifest["spec"]
-                if "mount_propagation" in conf:
-                # Handle AMR snake_case naming
-                    conf["mountPropagation"] = conf.pop("mount_propagation")
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _add_volume(new_spec, conf)
-                else:
-                    _add_volume(spec, conf)
+        for conf in configurationData:
+            spec = manifest["spec"]
+            if "mount_propagation" in conf:
+            # Handle AMR snake_case naming
+                conf["mountPropagation"] = conf.pop("mount_propagation")
+            if spec.get("containers") is None:
+                new_spec = spec["template"]["spec"]
+                _add_volume(new_spec, conf)
+            else:
+                _add_volume(spec, conf)
 
         node_templates[node_name] = _to_node(manifest)
 
