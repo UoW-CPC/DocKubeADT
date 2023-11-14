@@ -195,10 +195,20 @@ def convert_doc_to_kube(dicts, container_name):
     """
     with open("compose.yaml", "w") as out_file:
         yaml.dump(dicts, out_file)
+
+    cmd = f"""
+        kompose convert \
+        -f compose.yaml \
+        --volumes hostPath \
+        --out {container_name}.yaml
+    """
     status, stdout = run_command(cmd)
     print(stdout)
 
     os.remove("compose.yaml")
+
+    if status != 0:
+        raise ValueError(f"Docker Compose has a validation error")
 
 
 def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
