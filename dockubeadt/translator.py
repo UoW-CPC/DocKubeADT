@@ -92,23 +92,21 @@ def check_bind_propagation(container):
     Returns:
         volume_data: details regarding the bind propagation
     """
-    volumes = container.get("volumes")
     volume_data = []
-    i = 0
-    if volumes is not None:
-        for volume in volumes:
-            if (type(volume) is dict):
-                if (volume.get("bind") is not None):
-                    propagation = volume["bind"]["propagation"]
-                    target = volume['target']
-                    if propagation == "rshared":
-                        mountPropagation = "Bidirectional"
-                    if propagation == "rslave":
-                        mountPropagation = "HostToContainer"
-                    volume_data.append({"id":i, "mountPath":target, "mountPropagation":mountPropagation})
-            i = i+1
+    for volume in container.get("volumes", []):
+        volume_data.append(get_propagation(volume))
 
     return volume_data
+
+def get_propagation(volume):
+    mapping = {
+        "rshared": "Bidirectional",
+        "rslave": "HostToContainer"
+    }
+    try:
+        return mapping[volume["bind"]["propagation"]]
+    except (KeyError, TypeError):
+        return None
 
 def check_long_syntax_port(container):
     """Check whether a container has a long syntax for port binding
