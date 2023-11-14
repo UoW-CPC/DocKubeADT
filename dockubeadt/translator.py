@@ -58,8 +58,7 @@ def translate_dict(
             data_new = f.read()
         manifests = yaml.load_all(data_new)
         mdt = translate_manifest(manifests, volumeData, portData, configurationData)
-        cmd = "rm {}*".format(container_name)
-        run_command(cmd)
+        os.remove(file_name)
     else:
         raise ValueError(
             "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
