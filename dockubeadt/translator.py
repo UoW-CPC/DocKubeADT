@@ -187,8 +187,6 @@ def convert_doc_to_kube(dicts, container_name):
     Returns:
         string: name of the container
     """
-    if dicts["version"] == "3.9":
-        dicts["version"] = "3.7"
     with open("compose.yaml", "w") as out_file:
         yaml.dump(dicts, out_file)
     cmd = "kompose convert -f compose.yaml --volumes hostPath"
