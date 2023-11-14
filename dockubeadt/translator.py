@@ -9,8 +9,6 @@ from ruamel.yaml import YAML
 
 from . import __version__
 
-INVOKED_AS_LIB=False
-
 yaml = YAML()
 
 def translate(file, stream=False):
@@ -40,8 +38,6 @@ def translate_dict(
     configurationData: list = None,
 ):
     print(f"Running DocKubeADT v{__version__}")
-    global INVOKED_AS_LIB
-    INVOKED_AS_LIB=True
     configurationData = configurationData if configurationData else []
     volumeData = []
     portData = []
