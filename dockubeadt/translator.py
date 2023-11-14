@@ -12,6 +12,8 @@ from . import __version__
 
 yaml = YAML()
 
+WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
+
 def translate(file, stream=False):
     if not stream:
         with open(file, "r") as in_file:
@@ -192,6 +194,9 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
     Returns:
         adt: ADT in dictionary format
     """
+    if count_workloads(manifests) > 1:
+        raise ValueError("Manifest file cannot have more than one workload.")
+
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
     if configurationData is not None:
@@ -201,6 +206,14 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
     _transform(manifests, "micado", node_templates, volumeData, portData, configurationData)
     return adt
 
+def count_workloads(manifests):
+    return len(
+        [
+            manifest for manifest
+            in manifests
+            if manifest.lower() in WORKLOADS
+        ]
+    )
 
 def _add_configdata(configurationData, node_templates):
     for conf in configurationData:
@@ -229,18 +242,11 @@ def _transform(
         node_templates (dict): `node_templates` key of the ADT
     """
 
-    wln = 0
-    for ix, manifest in enumerate(manifests):
-        name, count = _get_name(manifest)
-        if count == 1:
-            wln = wln + 1
-        if wln > 1:
-            print(
-                "Manifest file can't have more than one workloads. Exiting ..."
-            )
-            raise ValueError("Manifest file has more than one workload")
-        node_name = name or f"{filename}-{ix}"
+    for manifest in manifests:
+
+        name = manifest["metadata"]["name"].lower()
         kind = manifest["kind"].lower()
+        node_name = f"{name}-{kind}"
 
         if kind in ["deployment", "pod", "statefulset", "daemonset"]:
 
@@ -308,26 +314,6 @@ def _add_volume(spec, conf):
 
     volumes = spec.setdefault("volumes", [])
     volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
-
-
-def _get_name(manifest):
-    """Returns the name from the manifest metadata
-
-    Args:
-        manifest (dict): K8s manifests
-
-    Returns:
-        string: Name of the Kubernetes object, or None
-    """
-    try:
-        count = 0
-        name = manifest["metadata"]["name"].lower()
-        kind = manifest["kind"].lower()
-        if kind in ["deployment", "pod", "statefulset", "daemonset"]:
-            count = 1
-        return f"{name}-{kind}", count
-    except KeyError:
-        return None, 0
 
 
 def _get_default_adt():
