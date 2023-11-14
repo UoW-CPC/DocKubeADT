@@ -1,10 +1,11 @@
 import click
-import sys,os
-
-from .translator import translate
-import ruamel.yaml as yaml
+import os
+import sys
 from pathlib import Path
+
 from ruamel.yaml.scanner import ScannerError
+
+from dockubeadt.translator import translate
 
 
 @click.command()
