@@ -219,7 +219,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, filename, node_templates, volumeData: list = None, portData: list = None, configurationData: list = None
+    manifests, filename, node_templates, volume_data: list = None, portData: list = None, configurationData: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -244,13 +244,12 @@ def _transform(
 
         if kind in ["deployment", "pod", "statefulset", "daemonset"]:
 
-            for vol in volumeData:
-                spec = manifest["spec"]
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _update_volume(new_spec, vol)
-                else:
-                    _update_volume(spec, vol)
+            spec = manifest["spec"]
+            if "containers" not in spec:
+                spec = spec["template"]["spec"]
+            container = spec["containers"][0]
+
+            _update_volumes(container, volume_data)
 
             for port in portData:
                 spec = manifest["spec"]
@@ -273,13 +272,12 @@ def _transform(
 
         node_templates[node_name] = _to_node(manifest)
 
-def _update_volume(spec, vol):
-    containers = spec["containers"]
-    for container in containers:
-        volume_mounts = container.setdefault("volumeMounts", [])
-        volume_mount = volume_mounts[vol['id']]
-        if volume_mount["mountPath"] == vol["mountPath"]:
-            volume_mount["mountPropagation"] = vol["mountPropagation"]
+def _update_volumes(container, vol_data):
+    vol_mounts = container.get("volumeMounts", [])
+    for prop, mount in zip(vol_data, vol_mounts):
+        if not prop:
+            continue
+        mount["mountPropagation"] = prop
 
 def _update_port(spec, port):
     containers = spec["containers"]
