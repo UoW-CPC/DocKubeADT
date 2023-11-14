@@ -24,6 +24,9 @@ def main(file):
         sys.exit(1)
     except FileNotFoundError as error:
         print(str(error))
+        sys.exit(1)    
+    except ValueError as error:
+        print(str(error))
         sys.exit(1)
 
 
