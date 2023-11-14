@@ -13,11 +13,13 @@ spec:
 apiVersion: v1
 kind: Service
 metadata:
-  name: busybox-sleep-less
+  name: busybox-sleep
+  labels:
+    io.kompose.service: busy
 spec:
-  containers:
-  - name: busybox
-    image: busybox
-    args:
-    - sleep
-    - "1000"
+  ports:
+  - name: '3306'
+    port: 3306
+    targetPort: 3306
+  selector:
+    io.kompose.service: busy

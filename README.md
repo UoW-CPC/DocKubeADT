@@ -8,12 +8,13 @@ Kubernetes manifests or a Docker compose into a MiCADO ADT.
 - `Python >= 3.6`
 - `click`
 - `ruamel.yaml`
+- [Kompose](https://github.com/kubernetes/kompose/) >= 1.31.x
 
 ## Usage
 
 Install compose binary:
 
-    curl -L https://github.com/kubernetes/kompose/releases/download/v1.26.1/kompose-linux-amd64 -o kompose
+    curl -L https://github.com/kubernetes/kompose/releases/download/v1.31.2/kompose-linux-amd64 -o kompose
     chmod +x kompose
     sudo mv ./kompose /usr/local/bin/kompose
 

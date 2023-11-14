@@ -2,14 +2,13 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from io import StringIO
 from pathlib import Path
 
 from ruamel.yaml import YAML
 
 from . import __version__
-
-INVOKED_AS_LIB=False
 
 yaml = YAML()
 
@@ -20,18 +19,16 @@ def translate(file, stream=False):
     else:
         data = file
 
-    dicts = yaml.load_all(data)
-    type = check_type(dicts)
-
-    if type == "kubernetes-manifest":
-        manifests = yaml.load_all(data)
-        mdt = translate_dict(type, manifests)
-    elif type == "docker-compose":
+    if is_compose(data):
         composes = yaml.load(data)
-        mdt = translate_dict(type, composes)
+        mdt = translate_dict("docker-compose", composes)
 
-    adt = "topology_template:\n" + mdt
-    return adt
+    else:
+        manifests = yaml.load_all(data)
+        mdt = translate_dict("kubernetes-manifest", manifests)
+
+    mdt = yaml.load(mdt)
+    return {"topology_template": mdt}
 
 
 def translate_dict(
@@ -40,64 +37,39 @@ def translate_dict(
     configurationData: list = None,
 ):
     print(f"Running DocKubeADT v{__version__}")
-    global INVOKED_AS_LIB
-    INVOKED_AS_LIB=True
-    configurationData = configurationData if configurationData else []
-    volumeData = []
-    portData = []
-    if deployment_format == "kubernetes-manifest":
-        mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
-    elif deployment_format == "docker-compose":
+    
+    if deployment_format not in ["docker-compose", "kubernetes-manifest"]:
+        raise ValueError(
+            "Unsupported deployment_format. Expected 'docker-compose' or 'kubernetes-manifest'"
+        )
+    
+    configurationData = configurationData or []
+    volumeData, portData = [], []
+
+    if deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
         volumeData = check_bind_propagation(container)
         portData = check_long_syntax_port(container)
-        convert_doc_to_kube(topology_metadata, container_name)
-        file_name = "{}.yaml".format(container_name)
-        with open(file_name, "r") as f:
-            data_new = f.read()
-        manifests = yaml.load_all(data_new)
-        mdt = translate_manifest(manifests, volumeData, portData, configurationData)
-        cmd = "rm {}*".format(container_name)
-        run_command(cmd)
-    else:
-        raise ValueError(
-            "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
-        )
+        topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
+    
+    mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
 
-    _yaml = YAML()
-    _yaml.preserve_quotes = True
-    _yaml.width = 800
-    dt_stream = StringIO()
-    _yaml.dump(mdt, dt_stream)
-    adt_str = dt_stream.getvalue()
-    adt = ""
-    for line in adt_str.splitlines():
-        adt = adt + "  " + line + "\n"
-    adt = adt[: adt.rfind("\n")]
+    buffer = StringIO()
+    yaml.dump(mdt, buffer)
+
     print("Translation completed successfully")
 
-    return adt
+    return buffer.getvalue()
 
 
-def check_type(dicts):
-    """Check whether the given dictionary is a Docker Compose or K8s Manifest
-
-    Args:
-        dicts (dictionary): dictionary containing a docker compose or k8s manifest
-
-    Returns:
-        string: docker-compose or kubernetes-manifest
+def is_compose(data):
+    """Check whether the given dictionary is a Docker Compose
     """
-    dict = list(dicts)[0]
-    if "kind" in dict:
-        type = "kubernetes-manifest"
-    elif "services" in dict:
-        type = "docker-compose"
-    return type
+    return "services" in list(yaml.load_all(data))[0]
 
 
-def validate_compose(dicts):
+def validate_compose(compose):
     """Check whether the given Docker Compose file contains more than one containers
 
     Args:
@@ -106,14 +78,10 @@ def validate_compose(dicts):
     Returns:
         string: name of the container
     """
-    dict = dicts["services"]
-    if len(dict) > 1:
-        print(
-            "Docker compose file can't have more than one containers. Exiting..."
-        )
-        raise ValueError("Docker compose file has more than one container")
-    name = next(iter(dict))
-    return name
+    services = compose["services"]
+    if len(services) > 1:
+        raise ValueError("DocKubeADT does not support conversion of multiple containers")
+    return list(services.keys())[0]
 
 def check_bind_propagation(container):
     """Check whether a container has volume bind propagation
@@ -166,17 +134,24 @@ def check_long_syntax_port(container):
     return port_data
 
 def run_command(cmd):
-    global INVOKED_AS_LIB
-    if INVOKED_AS_LIB:
-        sys.stdout.flush()
-        with subprocess.Popen(cmd, 
-                stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True) as p:
-            for line in p.stdout:
-                print(re.sub(r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))', '', line.decode()),end="")
-                sys.stdout.flush()
-        return p.returncode
-    else:
-        os.system(cmd)
+    """Run a command, getting RC and output"""
+
+    with subprocess.Popen(
+            cmd, 
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            shell=True
+    ) as p:
+        
+        output = ""
+        for line in p.stdout:
+            # Regex gets rid of additional characters in Kompose output
+            output += re.sub(
+                r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))',
+                '',
+                line.decode()
+            )
+    return p.returncode, output
 
 def convert_doc_to_kube(dicts, container_name):
     """Check whether the given file Docker Compose contains more than one containers
@@ -185,23 +160,30 @@ def convert_doc_to_kube(dicts, container_name):
         dicts (dictionary): Dictionary containing Docker Compose file
 
     Returns:
-        string: name of the container
+        dict: Kubernetes manifests
     """
-    if dicts["version"] == "3.9":
-        dicts["version"] = "3.7"
-    with open("compose.yaml", "w") as out_file:
-        yaml.dump(dicts, out_file)
-    cmd = "kompose convert -f compose.yaml --volumes hostPath"
-    status = run_command(cmd)
+    out_file = f"{container_name}.yaml"
+    with tempfile.NamedTemporaryFile("w") as tmpfile:
+        yaml.dump(dicts, tmpfile)
+        cmd = f"""
+            kompose convert \
+            -f {tmpfile.name} \
+            --volumes hostPath \
+            --out {out_file}
+        """
+        status, stdout = run_command(cmd)
+
+    print(stdout)
 
     if status != 0:
-        raise ValueError("Docker Compose has a validation error")
+        raise ValueError(f"Docker Compose has a validation error")
     
-    cmd = "count=0; for file in `ls {}-*`; do if [ $count -eq 0 ]; then cat $file >{}.yaml; count=1; else echo '---'>>{}.yaml; cat $file >>{}.yaml; fi; done".format(
-        container_name, container_name, container_name, container_name
-    )
-    run_command(cmd)
-    os.remove("compose.yaml")
+    with open(out_file, "r") as f:
+        manifests = yaml.load_all(f.read())
+    os.remove(out_file)
+    print(f'INFO Kubernetes file "{out_file}" removed')
+
+    return manifests
 
 
 def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
