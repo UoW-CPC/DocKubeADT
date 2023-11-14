@@ -79,7 +79,7 @@ def is_compose(data):
     return "services" in list(yaml.load_all(data))[0]
 
 
-def validate_compose(dicts):
+def validate_compose(compose):
     """Check whether the given Docker Compose file contains more than one containers
 
     Args:
@@ -88,14 +88,10 @@ def validate_compose(dicts):
     Returns:
         string: name of the container
     """
-    dict = dicts["services"]
-    if len(dict) > 1:
-        print(
-            "Docker compose file can't have more than one containers. Exiting..."
-        )
-        raise ValueError("Docker compose file has more than one container")
-    name = next(iter(dict))
-    return name
+    services = compose["services"]
+    if len(services) > 1:
+        raise ValueError("DocKubeADT does not support conversion of multiple containers")
+    return list(services.keys())[0]
 
 def check_bind_propagation(container):
     """Check whether a container has volume bind propagation
