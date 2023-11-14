@@ -3,10 +3,12 @@ import os
 import sys
 from pathlib import Path
 
+from ruamel.yaml import YAML
 from ruamel.yaml.scanner import ScannerError
 
 from dockubeadt.translator import translate
 
+yaml = YAML()
 
 @click.command()
 @click.argument("file")
@@ -17,8 +19,7 @@ def main(file):
     try:
         adt = translate(file)
         out_path = Path(f"{os.getcwd()}/adt-micado.yaml")
-        with open(out_path, "w") as out_file:
-            out_file.writelines(adt)
+        yaml.dump(adt, out_path)
     except ScannerError:
         print("[Errno 1] Not a valid YAML file")
         sys.exit(1)
