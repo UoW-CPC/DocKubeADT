@@ -27,8 +27,8 @@ def translate(file, stream=False):
         manifests = yaml.load_all(data)
         mdt = translate_dict("kubernetes-manifest", manifests)
 
-    adt = "topology_template:\n" + mdt
-    return adt
+    mdt = yaml.load(mdt)
+    return {"topology_template": mdt}
 
 
 def translate_dict(
