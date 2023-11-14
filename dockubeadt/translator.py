@@ -189,16 +189,12 @@ def convert_doc_to_kube(dicts, container_name):
     """
     with open("compose.yaml", "w") as out_file:
         yaml.dump(dicts, out_file)
-    cmd = "kompose convert -f compose.yaml --volumes hostPath"
+    cmd = f"kompose convert -f compose.yaml --volumes hostPath --out {container_name}.yaml"
     status = run_command(cmd)
 
     if status != 0:
         raise ValueError("Docker Compose has a validation error")
-    
-    cmd = "count=0; for file in `ls {}-*`; do if [ $count -eq 0 ]; then cat $file >{}.yaml; count=1; else echo '---'>>{}.yaml; cat $file >>{}.yaml; fi; done".format(
-        container_name, container_name, container_name, container_name
-    )
-    run_command(cmd)
+
     os.remove("compose.yaml")
 
 
