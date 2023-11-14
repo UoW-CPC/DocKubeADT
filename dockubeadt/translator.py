@@ -37,22 +37,23 @@ def translate_dict(
     configurationData: list = None,
 ):
     print(f"Running DocKubeADT v{__version__}")
-    configurationData = configurationData if configurationData else []
-    volumeData = []
-    portData = []
-    if deployment_format == "kubernetes-manifest":
-        mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
-    elif deployment_format == "docker-compose":
+    
+    if deployment_format not in ["docker-compose", "kubernetes-manifest"]:
+        raise ValueError(
+            "Unsupported deployment_format. Expected 'docker-compose' or 'kubernetes-manifest'"
+        )
+    
+    configurationData = configurationData or []
+    volumeData, portData = [], []
+
+    if deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
         volumeData = check_bind_propagation(container)
         portData = check_long_syntax_port(container)
-        manifests = convert_doc_to_kube(topology_metadata, container_name)
-        mdt = translate_manifest(manifests, volumeData, portData, configurationData)
-    else:
-        raise ValueError(
-            "The deploymentFormat should be either 'docker-compose' or 'kubernetes-manifest'"
-        )
+        topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
+    
+    mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
 
     _yaml = YAML()
     _yaml.preserve_quotes = True
@@ -168,7 +169,7 @@ def convert_doc_to_kube(dicts, container_name):
     Returns:
         dict: Kubernetes manifests
     """
-    out_file = "{container_name}.yaml"
+    out_file = f"{container_name}.yaml"
     with tempfile.NamedTemporaryFile("w") as tmpfile:
         yaml.dump(dicts, tmpfile)
         cmd = f"""
@@ -187,6 +188,7 @@ def convert_doc_to_kube(dicts, container_name):
     with open(out_file, "r") as f:
         manifests = yaml.load_all(f.read())
     os.remove(out_file)
+    print(f'INFO Kubernetes file "{out_file}" removed')
 
     return manifests
 
