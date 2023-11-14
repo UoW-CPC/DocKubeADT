@@ -55,19 +55,12 @@ def translate_dict(
     
     mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
 
-    _yaml = YAML()
-    _yaml.preserve_quotes = True
-    _yaml.width = 800
-    dt_stream = StringIO()
-    _yaml.dump(mdt, dt_stream)
-    adt_str = dt_stream.getvalue()
-    adt = ""
-    for line in adt_str.splitlines():
-        adt = adt + "  " + line + "\n"
-    adt = adt[: adt.rfind("\n")]
+    buffer = StringIO()
+    yaml.dump(mdt, buffer)
+
     print("Translation completed successfully")
 
-    return adt
+    return buffer.getvalue()
 
 
 def is_compose(data):
