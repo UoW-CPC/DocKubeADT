@@ -18,15 +18,13 @@ def translate(file, stream=False):
     else:
         data = file
 
-    dicts = yaml.load_all(data)
-    type = check_type(dicts)
-
-    if type == "kubernetes-manifest":
-        manifests = yaml.load_all(data)
-        mdt = translate_dict(type, manifests)
-    elif type == "docker-compose":
+    if is_compose(data):
         composes = yaml.load(data)
-        mdt = translate_dict(type, composes)
+        mdt = translate_dict("docker-compose", composes)
+
+    else:
+        manifests = yaml.load_all(data)
+        mdt = translate_dict("kubernetes-manifest", manifests)
 
     adt = "topology_template:\n" + mdt
     return adt
@@ -75,21 +73,10 @@ def translate_dict(
     return adt
 
 
-def check_type(dicts):
-    """Check whether the given dictionary is a Docker Compose or K8s Manifest
-
-    Args:
-        dicts (dictionary): dictionary containing a docker compose or k8s manifest
-
-    Returns:
-        string: docker-compose or kubernetes-manifest
+def is_compose(data):
+    """Check whether the given dictionary is a Docker Compose
     """
-    dict = list(dicts)[0]
-    if "kind" in dict:
-        type = "kubernetes-manifest"
-    elif "services" in dict:
-        type = "docker-compose"
-    return type
+    return "services" in list(yaml.load_all(data))[0]
 
 
 def validate_compose(dicts):
