@@ -2,6 +2,7 @@ import os
 import re
 import subprocess
 import sys
+import tempfile
 from io import StringIO
 from pathlib import Path
 
@@ -172,19 +173,18 @@ def convert_doc_to_kube(dicts, container_name):
     Returns:
         string: name of the container
     """
-    with open("compose.yaml", "w") as out_file:
-        yaml.dump(dicts, out_file)
+    out_file = "{container_name}.yaml"
+    with tempfile.NamedTemporaryFile("w") as tmpfile:
+        yaml.dump(dicts, tmpfile)
+        cmd = f"""
+            kompose convert \
+            -f {tmpfile.name} \
+            --volumes hostPath \
+            --out {out_file}
+        """
+        status, stdout = run_command(cmd)
 
-    cmd = f"""
-        kompose convert \
-        -f compose.yaml \
-        --volumes hostPath \
-        --out {container_name}.yaml
-    """
-    status, stdout = run_command(cmd)
     print(stdout)
-
-    os.remove("compose.yaml")
 
     if status != 0:
         raise ValueError(f"Docker Compose has a validation error")
