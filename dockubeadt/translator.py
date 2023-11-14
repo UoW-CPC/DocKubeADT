@@ -166,17 +166,24 @@ def check_long_syntax_port(container):
     return port_data
 
 def run_command(cmd):
-    global INVOKED_AS_LIB
-    if INVOKED_AS_LIB:
-        sys.stdout.flush()
-        with subprocess.Popen(cmd, 
-                stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True) as p:
-            for line in p.stdout:
-                print(re.sub(r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))', '', line.decode()),end="")
-                sys.stdout.flush()
-        return p.returncode
-    else:
-        os.system(cmd)
+    """Run a command, getting RC and output"""
+
+    with subprocess.Popen(
+            cmd, 
+            stderr=subprocess.STDOUT,
+            stdout=subprocess.PIPE,
+            shell=True
+    ) as p:
+        
+        output = ""
+        for line in p.stdout:
+            # Regex gets rid of additional characters in Kompose output
+            output += re.sub(
+                r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))',
+                '',
+                line.decode()
+            )
+    return p.returncode, output
 
 def convert_doc_to_kube(dicts, container_name):
     """Check whether the given file Docker Compose contains more than one containers
@@ -189,11 +196,8 @@ def convert_doc_to_kube(dicts, container_name):
     """
     with open("compose.yaml", "w") as out_file:
         yaml.dump(dicts, out_file)
-    cmd = f"kompose convert -f compose.yaml --volumes hostPath --out {container_name}.yaml"
-    status = run_command(cmd)
-
-    if status != 0:
-        raise ValueError("Docker Compose has a validation error")
+    status, stdout = run_command(cmd)
+    print(stdout)
 
     os.remove("compose.yaml")
 
