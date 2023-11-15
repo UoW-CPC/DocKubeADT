@@ -46,7 +46,7 @@ def translate_dict(
         )
     
     configuration_data = configuration_data or []
-    propagation, portData = [], []
+    propagation = []
 
     if deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
@@ -54,7 +54,7 @@ def translate_dict(
         propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
     
-    mdt = translate_manifest(topology_metadata, propagation, portData, configuration_data)
+    mdt = translate_manifest(topology_metadata, propagation, configuration_data)
 
     buffer = StringIO()
     yaml.dump(mdt, buffer)
@@ -163,7 +163,7 @@ def convert_doc_to_kube(dicts, container_name):
     return manifests
 
 
-def translate_manifest(manifests, propagation: list = None, portData: list = None, configuration_data: list = None):
+def translate_manifest(manifests, propagation: list = None, configuration_data: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -179,7 +179,7 @@ def translate_manifest(manifests, propagation: list = None, portData: list = Non
     node_templates = adt["node_templates"]
     if configuration_data is not None:
         _add_configdata(configuration_data, node_templates)
-    _transform(manifests, node_templates, propagation, portData, configuration_data)
+    _transform(manifests, node_templates, propagation, configuration_data)
     return adt
 
 def count_workloads(manifests):
@@ -208,7 +208,7 @@ def _add_configdata(configuration_data, node_templates):
 
 
 def _transform(
-    manifests, node_templates, propagation: list = None, portData: list = None, configuration_data: list = None
+    manifests, node_templates, propagation: list = None, configuration_data: list = None
 ):
     """Transforms a single manifest into a node template
 
