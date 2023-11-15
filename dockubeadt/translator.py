@@ -193,18 +193,17 @@ def count_workloads(manifests):
 
 def _add_configdata(configuration_data, node_templates):
     for conf in configuration_data:
-        file = conf["file_path"]
-        in_path = Path(file)
+        file_name = Path(conf["file_path"]).name
         file_content = conf["file_content"]
         configmap = {
             "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
             "properties": {
-                "data": {f"{in_path.name}": f"{file_content}"}
+                "data": {file_name: file_content}
             }
         }
-        node_templates[
-            in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        ] = configmap
+        
+        node_name = file_name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        node_templates[node_name] = configmap
 
 
 def _transform(
