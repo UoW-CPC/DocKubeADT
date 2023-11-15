@@ -146,7 +146,8 @@ def convert_doc_to_kube(dicts, container_name):
             kompose convert \
             -f {tmpfile.name} \
             --volumes hostPath \
-            --out {out_file}
+            --out {out_file} \
+            --with-kompose-annotation=false
         """
         status, stdout = run_command(cmd)
 
@@ -296,22 +297,7 @@ def _to_node(manifest):
     Returns:
         dict: ADT node_template
     """
-    metadata = manifest["metadata"]
-    metadata.pop("annotations", None)
-    metadata.pop("creationTimestamp", None)
-    manifest["metadata"] = metadata
 
-    if manifest.get("spec") is not None:
-        spec = manifest["spec"]
-        if spec.get("template") is not None:
-            template = spec["template"]
-            if template.get("metadata") is not None:
-                template_metadata = template["metadata"]
-                template_metadata.pop("annotations", None)
-                template_metadata.pop("creationTimestamp", None)
-                manifest["spec"]["template"]["metadata"] = template_metadata
-
-    manifest.pop("status", None)
     return {
         "type": "tosca.nodes.MiCADO.Kubernetes",
         "interfaces": {"Kubernetes": {"create": {"inputs": manifest}}},
