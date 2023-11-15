@@ -1,14 +1,13 @@
 import os
 import re
 import subprocess
-import sys
-from tempfile import NamedTemporaryFile
 from io import StringIO
 from pathlib import Path
+from tempfile import NamedTemporaryFile
 
 from ruamel.yaml import YAML
 
-from . import __version__
+from dockubeadt import __version__
 
 yaml = YAML()
 
