@@ -5,11 +5,8 @@ from io import StringIO
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from ruamel.yaml import YAML
-
 from dockubeadt import __version__
-
-yaml = YAML()
+from dockubeadt.utils import load_multi_yaml, load_yaml, dump_yaml
 
 WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
 
@@ -32,14 +29,14 @@ def translate(file, stream=False):
         data = file
 
     if is_compose(data):
-        composes = yaml.load(data)
+        composes = load_yaml(data)
         mdt = translate_dict("docker-compose", composes)
 
     else:
-        manifests = yaml.load_all(data)
+        manifests = load_multi_yaml(data)
         mdt = translate_dict("kubernetes-manifest", manifests)
 
-    mdt = yaml.load(mdt)
+    mdt = load_yaml(mdt)
     return {"topology_template": mdt}
 
 
@@ -85,7 +82,7 @@ def translate_dict(
     mdt = translate_manifest(topology_metadata, propagation, configuration_data)
 
     buffer = StringIO()
-    yaml.dump(mdt, buffer)
+    dump_yaml(mdt, buffer)
 
     print("Translation completed successfully")
 
@@ -103,7 +100,7 @@ def is_compose(data):
     Returns:
         bool: True if the data is a Docker Compose file, False otherwise.
     """
-    return "services" in list(yaml.load_all(data))[0]
+    return "services" in load_multi_yaml(data)[0]
 
 
 def get_container_from_compose(compose):
@@ -201,7 +198,7 @@ def convert_doc_to_kube(dicts, container_name):
     
     out_file = f"{container_name}.yaml"
     with NamedTemporaryFile("w", dir=os.getcwd()) as tmpfile:
-        yaml.dump(dicts, tmpfile)
+        dump_yaml(dicts, tmpfile)
         cmd = f"""
             kompose convert \
             -f {tmpfile.name} \
@@ -217,7 +214,7 @@ def convert_doc_to_kube(dicts, container_name):
         raise ValueError(f"Docker Compose has a validation error")
     
     with open(out_file, "r") as f:
-        manifests = yaml.load_all(f.read())
+        manifests = load_multi_yaml(f.read())
     os.remove(out_file)
     print(f'INFO Kubernetes file "{out_file}" removed')
 
@@ -240,7 +237,6 @@ def translate_manifest(
     Returns:
         dict: An Azure Deployment Template (ADT) object.
     """
-    manifests = list(manifests)
     if count_workloads(manifests) > 1:
         raise ValueError("Manifest file cannot have more than one workload.")
 

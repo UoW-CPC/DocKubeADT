@@ -3,9 +3,7 @@ import tempfile
 import pytest
 from ruamel.yaml import YAML
 
-from dockubeadt.translator import translate
-
-yaml = YAML()
+from dockubeadt.utils import load_yaml, dump_yaml
 
 
 def test_basic_translation():
@@ -17,7 +15,7 @@ def test_basic_translation():
     }
 
     with tempfile.NamedTemporaryFile("r+") as file:
-        yaml.dump(manifest, file)
+        dump_yaml(manifest, file)
         data = translate(file.name)
 
     nodes = data["topology_template"]["node_templates"]
@@ -41,5 +39,4 @@ def test_two_pod_translation():
 def test_compose_translation():
     data = translate("tests/data/docker-compose.yaml")
     nodes = data["topology_template"]["node_templates"]
-    print(nodes)
     assert all(["db-service" in nodes, "db-deployment" in nodes])
