@@ -187,7 +187,7 @@ def count_workloads(manifests):
         [
             manifest for manifest
             in manifests
-            if manifest["kind"].lower() in WORKLOADS
+            if manifest and manifest["kind"].lower() in WORKLOADS
         ]
     )
 
