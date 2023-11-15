@@ -52,7 +52,6 @@ def translate_dict(
         container_name = validate_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
         volumeData = check_bind_propagation(container)
-        portData = check_long_syntax_port(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
     
     mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
@@ -110,28 +109,6 @@ def get_propagation(volume):
     except (KeyError, TypeError):
         return None
 
-def check_long_syntax_port(container):
-    """Check whether a container has a long syntax for port binding
-
-    Args:
-        dicts (dictionary): Dictionary containing the container details
-
-    Returns:
-        port_data: details of port mapping to add the hostPort in manifest
-    """
-    ports = container.get("ports")
-    port_data = []
-    i = 0
-    if ports is not None:
-        for port in ports:
-            if (type(port) is dict):
-                long_syntax = port
-                short_syntax = f"{long_syntax['published']}:{long_syntax['target']}{'/udp' if long_syntax.get('protocol') == 'udp' else ''}"
-                ports[i] = short_syntax
-                if long_syntax.get("mode") == "host":
-                    port_data.append({"id":i, "containerport":int(long_syntax['target']), "hostport":int(long_syntax['published'])})
-            i = i+1
-    return port_data
 
 def run_command(cmd):
     """Run a command, getting RC and output"""
@@ -202,8 +179,6 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
     node_templates = adt["node_templates"]
     if configurationData is not None:
         _add_configdata(configurationData, node_templates)
-
-    print("Translating the manifest")
     _transform(manifests, node_templates, volumeData, portData, configurationData)
     return adt
 
@@ -260,13 +235,6 @@ def _transform(
 
         _update_volumes(container, volume_data)
 
-        for port in portData:
-            spec = manifest["spec"]
-            if spec.get("containers") is None:
-                new_spec = spec["template"]["spec"]
-                _update_port(new_spec, port)
-            else:
-                _update_port(spec, port)
 
         for conf in configurationData:
             spec = manifest["spec"]
@@ -287,14 +255,6 @@ def _update_volumes(container, vol_data):
         if not prop:
             continue
         mount["mountPropagation"] = prop
-
-def _update_port(spec, port):
-    containers = spec["containers"]
-    for container in containers:
-        ports = container.setdefault("ports", [])
-        update_port = ports[port['id']]
-        if update_port["containerPort"] == port["containerport"]:
-            update_port["hostPort"] = port["hostport"]
 
 def _add_volume(spec, conf):
     containers = spec["containers"]
