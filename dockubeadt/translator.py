@@ -230,20 +230,9 @@ def _transform(
         spec, container = get_spec_container_from_manifest(manifest)
         if not container:
             continue
-        
+
         _update_propagation(container, propagation)
-
-
-        for conf in configuration_data:
-            spec = manifest["spec"]
-            if "mount_propagation" in conf:
-            # Handle AMR snake_case naming
-                conf["mountPropagation"] = conf.pop("mount_propagation")
-            if spec.get("containers") is None:
-                new_spec = spec["template"]["spec"]
-                _add_volume(new_spec, conf)
-            else:
-                _add_volume(spec, conf)
+        _update_configmaps(spec, container, configuration_data)
 
         node_templates[node_name] = _to_node(manifest)
 
@@ -269,28 +258,20 @@ def _update_propagation(container, propagation):
             continue
         mount["mountPropagation"] = prop
 
-def _add_volume(spec, conf):
-    containers = spec["containers"]
-    for container in containers:
-        volume_mounts = container.setdefault("volumeMounts", [])
+def _update_configmaps(spec, container, configuration_data):
+    volumes = spec.setdefault("volumes", [])
+    volume_mounts = container.setdefault("volumeMounts", [])
+    for configmap in configuration_data:
 
         # Using subPath here to always mount files individually.
         # (DIGITbrain configuration files are always single file ConfigMaps.)
-        file = conf["file_path"]
-        in_path = Path(file)
-        cfg_name = in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        file = configmap["file_path"]
+        cfg_name = Path(file).name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
+
         filename = os.path.basename(file)
         volume_mount = {"name": cfg_name, "mountPath": file, "subPath": filename}
-        if (conf.get("mountPropagation") is not None) and (
-            conf.get("mountPropagation")
-        ):
-            volume_mount["mountPropagation"] = conf["mountPropagation"]
-
         volume_mounts.append(volume_mount)
-
-    volumes = spec.setdefault("volumes", [])
-    volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
-
 
 def _get_default_adt():
     """Returns the boilerplate for a MiCADO ADT
