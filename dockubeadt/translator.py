@@ -211,6 +211,14 @@ def _to_node(manifest):
     Returns:
         dict: ADT node_template
     """
+    # Remove unnecessary fields for kubernetes-validate
+    # This can be removed if MiCADO stops using kubernetes-validate
+    manifest.pop("status", None)
+    manifest["metadata"].pop("creationTimestamp", None)
+    try:
+        manifest["spec"]["template"]["metadata"].pop("creationTimestamp")
+    except KeyError:
+        pass
 
     return {
         "type": "tosca.nodes.MiCADO.Kubernetes",
