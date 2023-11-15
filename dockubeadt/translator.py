@@ -46,15 +46,15 @@ def translate_dict(
         )
     
     configurationData = configurationData or []
-    volumeData, portData = [], []
+    propagation, portData = [], []
 
     if deployment_format == "docker-compose":
         container_name = validate_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
-        volumeData = check_bind_propagation(container)
+        propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
     
-    mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
+    mdt = translate_manifest(topology_metadata, propagation, portData, configurationData)
 
     buffer = StringIO()
     yaml.dump(mdt, buffer)
@@ -163,7 +163,7 @@ def convert_doc_to_kube(dicts, container_name):
     return manifests
 
 
-def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
+def translate_manifest(manifests, propagation: list = None, portData: list = None, configurationData: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -179,7 +179,7 @@ def translate_manifest(manifests, volumeData: list = None, portData: list = None
     node_templates = adt["node_templates"]
     if configurationData is not None:
         _add_configdata(configurationData, node_templates)
-    _transform(manifests, node_templates, volumeData, portData, configurationData)
+    _transform(manifests, node_templates, propagation, portData, configurationData)
     return adt
 
 def count_workloads(manifests):
@@ -208,7 +208,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, node_templates, volume_data: list = None, portData: list = None, configurationData: list = None
+    manifests, node_templates, propagation: list = None, portData: list = None, configurationData: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -233,7 +233,7 @@ def _transform(
             spec = spec["template"]["spec"]
         container = spec["containers"][0]
 
-        _update_volumes(container, volume_data)
+        _update_propagation(container, propagation)
 
 
         for conf in configurationData:
@@ -249,9 +249,9 @@ def _transform(
 
         node_templates[node_name] = _to_node(manifest)
 
-def _update_volumes(container, vol_data):
+def _update_propagation(container, propagation):
     vol_mounts = container.get("volumeMounts", [])
-    for prop, mount in zip(vol_data, vol_mounts):
+    for prop, mount in zip(propagation, vol_mounts):
         if not prop:
             continue
         mount["mountPropagation"] = prop
