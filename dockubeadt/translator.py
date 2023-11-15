@@ -6,7 +6,7 @@ from dockubeadt import __version__
 from dockubeadt.utils import load_multi_yaml, load_yaml, dump_yaml, run_command
 from dockubeadt.compose import (
     is_compose,
-    get_container_from_compose,
+    get_container_and_name,
     check_bind_propagation,
 )
 from dockubeadt.kube import (
@@ -83,10 +83,9 @@ def translate_dict(
     propagation = []
 
     if deployment_format == "docker-compose":
-        container_name = get_container_from_compose(topology_metadata)
-        container = topology_metadata["services"][container_name]
+        container, name = get_container_and_name(topology_metadata)
         propagation = check_bind_propagation(container)
-        topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
+        topology_metadata = convert_doc_to_kube(topology_metadata, name)
 
     mdt = translate_manifest(topology_metadata, propagation, configuration_data)
 

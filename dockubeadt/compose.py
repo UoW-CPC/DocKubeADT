@@ -15,7 +15,7 @@ def is_compose(data):
     return "services" in load_multi_yaml(data)[0]
 
 
-def get_container_from_compose(compose):
+def get_container_and_name(compose):
     """
     Gets the container from the Docker Compose file. Raises an error if
     the file contains more than one container.
@@ -32,9 +32,11 @@ def get_container_from_compose(compose):
     services = compose["services"]
     if len(services) > 1:
         raise ValueError(
-            "DocKubeADT does not support conversion of multiple containers"
+            "DocKubeADT does not support multiple containers"
         )
-    return list(services.keys())[0]
+    container_name = list(services.keys())[0]
+    container = services[container_name]
+    return container, container_name
 
 
 def check_bind_propagation(container):
