@@ -12,7 +12,7 @@ from dockubeadt.compose import (
 from dockubeadt.kube import (
     WORKLOADS,
     count_workloads,
-    get_spec_container_from_manifest,
+    get_spec_and_container,
     add_configdata,
     update_configmaps,
     update_propagation,
@@ -180,7 +180,7 @@ def _transform(
             node_templates[node_name] = _to_node(manifest)
             continue
 
-        spec, container = get_spec_container_from_manifest(manifest)
+        spec, container = get_spec_and_container(manifest)
         if not container:
             continue
 

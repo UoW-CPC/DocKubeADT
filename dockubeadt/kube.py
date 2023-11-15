@@ -23,7 +23,7 @@ def count_workloads(manifests):
     )
 
 
-def get_spec_container_from_manifest(manifest):
+def get_spec_and_container(manifest):
     """
     Given a Kubernetes manifest, returns the spec and first container definition
     found in the manifest's spec. If no container is found, returns None.
