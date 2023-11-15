@@ -3,15 +3,19 @@ from io import StringIO
 from tempfile import NamedTemporaryFile
 
 from dockubeadt import __version__
-from dockubeadt.utils import (
-    load_multi_yaml, load_yaml, dump_yaml, run_command
-)
+from dockubeadt.utils import load_multi_yaml, load_yaml, dump_yaml, run_command
 from dockubeadt.compose import (
-    is_compose, get_container_from_compose, check_bind_propagation
+    is_compose,
+    get_container_from_compose,
+    check_bind_propagation,
 )
 from dockubeadt.kube import (
-    WORKLOADS, count_workloads, get_spec_container_from_manifest,
-    add_configdata, update_configmaps, update_propagation
+    WORKLOADS,
+    count_workloads,
+    get_spec_container_from_manifest,
+    add_configdata,
+    update_configmaps,
+    update_propagation,
 )
 
 
@@ -58,7 +62,7 @@ def translate_dict(
           Must be either 'docker-compose' or 'kubernetes-manifest'.
 
         topology_metadata (dict): The topology metadata to translate.
-        
+
         configuration_data (list, optional): The configuration data to use
           for the translation. Defaults to None.
 
@@ -69,12 +73,12 @@ def translate_dict(
         str: The translated topology metadata in YAML format.
     """
     print(f"Running DocKubeADT v{__version__}")
-    
+
     if deployment_format not in ["docker-compose", "kubernetes-manifest"]:
         raise ValueError(
             "Unsupported deployment_format. Expected 'docker-compose' or 'kubernetes-manifest'"
         )
-    
+
     configuration_data = configuration_data or []
     propagation = []
 
@@ -83,7 +87,7 @@ def translate_dict(
         container = topology_metadata["services"][container_name]
         propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
-    
+
     mdt = translate_manifest(topology_metadata, propagation, configuration_data)
 
     buffer = StringIO()
@@ -105,7 +109,7 @@ def convert_doc_to_kube(dicts, container_name):
     Returns:
         generator: A generator object containing the Kubernetes manifests.
     """
-    
+
     out_file = f"{container_name}.yaml"
     with NamedTemporaryFile("w", dir=os.getcwd()) as tmpfile:
         dump_yaml(dicts, tmpfile)
@@ -122,7 +126,7 @@ def convert_doc_to_kube(dicts, container_name):
 
     if status != 0:
         raise ValueError(f"Docker Compose has a validation error")
-    
+
     with open(out_file, "r") as f:
         manifests = load_multi_yaml(f.read())
     os.remove(out_file)
@@ -132,10 +136,8 @@ def convert_doc_to_kube(dicts, container_name):
 
 
 def translate_manifest(
-        manifests,
-        propagation: list = None,
-        configuration_data: list = None
-    ):
+    manifests, propagation: list = None, configuration_data: list = None
+):
     """
     Translates a Kubernetes manifest file into an ADT.
 
@@ -171,7 +173,6 @@ def _transform(
         configuration_data (list, optional): A list of configuration data. Defaults to None.
     """
     for manifest in manifests:
-
         name = manifest["metadata"]["name"].lower()
         kind = manifest["kind"].lower()
         node_name = f"{name}-{kind}"

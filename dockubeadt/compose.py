@@ -1,5 +1,6 @@
 from dockubeadt.utils import load_multi_yaml
 
+
 def is_compose(data):
     """
     Check if the given data is a Docker Compose file by
@@ -30,8 +31,11 @@ def get_container_from_compose(compose):
     """
     services = compose["services"]
     if len(services) > 1:
-        raise ValueError("DocKubeADT does not support conversion of multiple containers")
+        raise ValueError(
+            "DocKubeADT does not support conversion of multiple containers"
+        )
     return list(services.keys())[0]
+
 
 def check_bind_propagation(container):
     """
@@ -49,6 +53,7 @@ def check_bind_propagation(container):
 
     return volume_data
 
+
 def _get_propagation(volume):
     """
     Returns the propagation mode for the given volume.
@@ -59,10 +64,7 @@ def _get_propagation(volume):
     Returns:
         str: The propagation mode for the volume, or None if it cannot be determined.
     """
-    mapping = {
-        "rshared": "Bidirectional",
-        "rslave": "HostToContainer"
-    }
+    mapping = {"rshared": "Bidirectional", "rslave": "HostToContainer"}
     try:
         return mapping[volume["bind"]["propagation"]]
     except (KeyError, TypeError):

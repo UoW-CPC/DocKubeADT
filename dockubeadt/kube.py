@@ -3,23 +3,25 @@ from pathlib import Path
 
 WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
 
+
 def count_workloads(manifests):
     """
     Counts the number of workloads in the given list of manifests.
-    
+
     Args:
         manifests (list): A list of Kubernetes manifests.
-        
+
     Returns:
         int: The number of workloads in the given list of manifests.
     """
     return len(
         [
-            manifest for manifest
-            in manifests
+            manifest
+            for manifest in manifests
             if manifest and manifest["kind"].lower() in WORKLOADS
         ]
     )
+
 
 def get_spec_container_from_manifest(manifest):
     """
@@ -47,6 +49,7 @@ def get_spec_container_from_manifest(manifest):
 
     return spec, container
 
+
 def add_configdata(configuration_data, node_templates):
     """
     Add configuration data to the ADT.
@@ -63,13 +66,14 @@ def add_configdata(configuration_data, node_templates):
         file_content = conf["file_content"]
         configmap = {
             "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
-            "properties": {
-                "data": {file_name: file_content}
-            }
+            "properties": {"data": {file_name: file_content}},
         }
 
-        node_name = file_name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        node_name = (
+            file_name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        )
         node_templates[node_name] = configmap
+
 
 def update_propagation(container, propagation):
     """
@@ -89,6 +93,7 @@ def update_propagation(container, propagation):
             continue
         mount["mountPropagation"] = prop
 
+
 def update_configmaps(spec, container, configuration_data):
     """
     Update the Kubernetes spec and container with the configuration data.
@@ -104,11 +109,16 @@ def update_configmaps(spec, container, configuration_data):
     volumes = spec.setdefault("volumes", [])
     volume_mounts = container.setdefault("volumeMounts", [])
     for configmap in configuration_data:
-
         # Using subPath here to always mount files individually.
         # (DIGITbrain configuration files are always single file ConfigMaps.)
         file = configmap["file_path"]
-        cfg_name = Path(file).name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
+        cfg_name = (
+            Path(file)
+            .name.lower()
+            .replace(".", "-")
+            .replace("_", "-")
+            .replace(" ", "-")
+        )
         volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
 
         filename = os.path.basename(file)

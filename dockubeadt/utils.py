@@ -5,6 +5,7 @@ from ruamel.yaml import YAML
 
 yaml = YAML()
 
+
 def load_multi_yaml(data):
     """
     Load multiple YAML documents from a string.
@@ -16,6 +17,7 @@ def load_multi_yaml(data):
         list: A list of the loaded YAML documents.
     """
     return list(yaml.load_all(data))
+
 
 def load_yaml(data):
     """
@@ -29,6 +31,7 @@ def load_yaml(data):
     """
     return yaml.load(data)
 
+
 def dump_yaml(data, stream):
     """
     Dump a YAML document to a stream.
@@ -38,6 +41,7 @@ def dump_yaml(data, stream):
         stream (file): The stream to dump the YAML data to.
     """
     yaml.dump(data, stream)
+
 
 def run_command(cmd):
     """
@@ -50,18 +54,10 @@ def run_command(cmd):
         tuple: A tuple containing the return code and output of the command.
     """
     with subprocess.Popen(
-            cmd, 
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            shell=True
+        cmd, stderr=subprocess.STDOUT, stdout=subprocess.PIPE, shell=True
     ) as p:
-        
         output = ""
         for line in p.stdout:
             # Regex gets rid of additional characters in Kompose output
-            output += re.sub(
-                r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))',
-                '',
-                line.decode()
-            )
+            output += re.sub(r"\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))", "", line.decode())
     return p.returncode, output
