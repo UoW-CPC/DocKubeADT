@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
@@ -64,6 +65,10 @@ def add_configdata(configuration_data, node_templates):
     for conf in configuration_data:
         file_name = Path(conf["file_path"]).name
         file_content = conf["file_content"]
+
+        # Handle incoming Windows-style newlines
+        file_content = re.sub(r'\r\s*\n', '\n', file_content)
+        
         configmap = {
             "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
             "properties": {"data": {file_name: file_content}},
