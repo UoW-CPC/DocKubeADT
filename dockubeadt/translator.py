@@ -1,18 +1,36 @@
 import os
-import re
-import subprocess
-import sys
-import tempfile
 from io import StringIO
-from pathlib import Path
+from tempfile import NamedTemporaryFile
 
-from ruamel.yaml import YAML
+from dockubeadt import __version__
+from dockubeadt.utils import load_multi_yaml, load_yaml, dump_yaml, run_command
+from dockubeadt.compose import (
+    is_compose,
+    get_container_from_compose,
+    check_bind_propagation,
+)
+from dockubeadt.kube import (
+    WORKLOADS,
+    count_workloads,
+    get_spec_container_from_manifest,
+    add_configdata,
+    update_configmaps,
+    update_propagation,
+)
 
-from . import __version__
-
-yaml = YAML()
 
 def translate(file, stream=False):
+    """
+    Translates a Docker Compose file or a Kubernetes manifest file into an ADT.
+
+    Args:
+        file (str): The path to the file to be translated, or the file contents if `stream` is True.
+        stream (bool, optional): Whether `file` contains the file contents directly. Defaults to False.
+
+    Returns:
+        dict: A dictionary representing the ADT.
+    """
+
     if not stream:
         with open(file, "r") as in_file:
             data = in_file.read()
@@ -20,156 +38,87 @@ def translate(file, stream=False):
         data = file
 
     if is_compose(data):
-        composes = yaml.load(data)
+        composes = load_yaml(data)
         mdt = translate_dict("docker-compose", composes)
 
     else:
-        manifests = yaml.load_all(data)
+        manifests = load_multi_yaml(data)
         mdt = translate_dict("kubernetes-manifest", manifests)
 
-    mdt = yaml.load(mdt)
+    mdt = load_yaml(mdt)
     return {"topology_template": mdt}
 
 
 def translate_dict(
     deployment_format,
     topology_metadata,
-    configurationData: list = None,
+    configuration_data: list = None,
 ):
+    """
+    Translates the metadata from the specified deployment format.
+
+    Args:
+        deployment_format (str): The deployment format to translate to.
+          Must be either 'docker-compose' or 'kubernetes-manifest'.
+
+        topology_metadata (dict): The topology metadata to translate.
+
+        configuration_data (list, optional): The configuration data to use
+          for the translation. Defaults to None.
+
+    Raises:
+        ValueError: If the deployment_format is not 'docker-compose' or 'kubernetes-manifest'.
+
+    Returns:
+        str: The translated topology metadata in YAML format.
+    """
     print(f"Running DocKubeADT v{__version__}")
-    
+
     if deployment_format not in ["docker-compose", "kubernetes-manifest"]:
         raise ValueError(
             "Unsupported deployment_format. Expected 'docker-compose' or 'kubernetes-manifest'"
         )
-    
-    configurationData = configurationData or []
-    volumeData, portData = [], []
+
+    configuration_data = configuration_data or []
+    propagation = []
 
     if deployment_format == "docker-compose":
-        container_name = validate_compose(topology_metadata)
+        container_name = get_container_from_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
-        volumeData = check_bind_propagation(container)
-        portData = check_long_syntax_port(container)
+        propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
-    
-    mdt = translate_manifest(topology_metadata, volumeData, portData, configurationData)
+
+    mdt = translate_manifest(topology_metadata, propagation, configuration_data)
 
     buffer = StringIO()
-    yaml.dump(mdt, buffer)
+    dump_yaml(mdt, buffer)
 
     print("Translation completed successfully")
 
     return buffer.getvalue()
 
 
-def is_compose(data):
-    """Check whether the given dictionary is a Docker Compose
-    """
-    return "services" in list(yaml.load_all(data))[0]
-
-
-def validate_compose(compose):
-    """Check whether the given Docker Compose file contains more than one containers
-
-    Args:
-        dicts (dictionary): Dictionary containing Docker Compose contents
-
-    Returns:
-        string: name of the container
-    """
-    services = compose["services"]
-    if len(services) > 1:
-        raise ValueError("DocKubeADT does not support conversion of multiple containers")
-    return list(services.keys())[0]
-
-def check_bind_propagation(container):
-    """Check whether a container has volume bind propagation
-
-    Args:
-        dicts (dictionary): Dictionary containing the container details
-
-    Returns:
-        volume_data: details regarding the bind propagation
-    """
-    volumes = container.get("volumes")
-    volume_data = []
-    i = 0
-    if volumes is not None:
-        for volume in volumes:
-            if (type(volume) is dict):
-                if (volume.get("bind") is not None):
-                    propagation = volume["bind"]["propagation"]
-                    target = volume['target']
-                    if propagation == "rshared":
-                        mountPropagation = "Bidirectional"
-                    if propagation == "rslave":
-                        mountPropagation = "HostToContainer"
-                    volume_data.append({"id":i, "mountPath":target, "mountPropagation":mountPropagation})
-            i = i+1
-
-    return volume_data
-
-def check_long_syntax_port(container):
-    """Check whether a container has a long syntax for port binding
-
-    Args:
-        dicts (dictionary): Dictionary containing the container details
-
-    Returns:
-        port_data: details of port mapping to add the hostPort in manifest
-    """
-    ports = container.get("ports")
-    port_data = []
-    i = 0
-    if ports is not None:
-        for port in ports:
-            if (type(port) is dict):
-                long_syntax = port
-                short_syntax = f"{long_syntax['published']}:{long_syntax['target']}{'/udp' if long_syntax.get('protocol') == 'udp' else ''}"
-                ports[i] = short_syntax
-                if long_syntax.get("mode") == "host":
-                    port_data.append({"id":i, "containerport":int(long_syntax['target']), "hostport":int(long_syntax['published'])})
-            i = i+1
-    return port_data
-
-def run_command(cmd):
-    """Run a command, getting RC and output"""
-
-    with subprocess.Popen(
-            cmd, 
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            shell=True
-    ) as p:
-        
-        output = ""
-        for line in p.stdout:
-            # Regex gets rid of additional characters in Kompose output
-            output += re.sub(
-                r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))',
-                '',
-                line.decode()
-            )
-    return p.returncode, output
-
 def convert_doc_to_kube(dicts, container_name):
-    """Check whether the given file Docker Compose contains more than one containers
+    """
+    Converts a Docker Compose file to Kubernetes manifests using Kompose.
 
     Args:
-        dicts (dictionary): Dictionary containing Docker Compose file
+        dicts (dict): A dictionary containing the Docker Compose file contents.
+        container_name (str): The name of the container.
 
     Returns:
-        dict: Kubernetes manifests
+        generator: A generator object containing the Kubernetes manifests.
     """
+
     out_file = f"{container_name}.yaml"
-    with tempfile.NamedTemporaryFile("w") as tmpfile:
-        yaml.dump(dicts, tmpfile)
+    with NamedTemporaryFile("w", dir=os.getcwd()) as tmpfile:
+        dump_yaml(dicts, tmpfile)
         cmd = f"""
             kompose convert \
             -f {tmpfile.name} \
             --volumes hostPath \
-            --out {out_file}
+            --out {out_file} \
+            --with-kompose-annotation=false
         """
         status, stdout = run_command(cmd)
 
@@ -177,168 +126,73 @@ def convert_doc_to_kube(dicts, container_name):
 
     if status != 0:
         raise ValueError(f"Docker Compose has a validation error")
-    
+
     with open(out_file, "r") as f:
-        manifests = yaml.load_all(f.read())
+        manifests = load_multi_yaml(f.read())
     os.remove(out_file)
     print(f'INFO Kubernetes file "{out_file}" removed')
 
     return manifests
 
 
-def translate_manifest(manifests, volumeData: list = None, portData: list = None, configurationData: list = None):
-    """Translates K8s Manifest(s) to a MiCADO ADT
+def translate_manifest(
+    manifests, propagation: list = None, configuration_data: list = None
+):
+    """
+    Translates a Kubernetes manifest file into an ADT.
 
     Args:
-        file (string): Path to Kubernetes manifest
+        manifests (list): A list of Kubernetes manifest files.
+        propagation (list, optional): A list of Kubernetes propagation policies. Defaults to None.
+        configuration_data (list, optional): A list of configuration data. Defaults to None.
+
     Returns:
-        adt: ADT in dictionary format
+        dict: An Azure Deployment Template (ADT) object.
     """
+    if count_workloads(manifests) > 1:
+        raise ValueError("Manifest file cannot have more than one workload.")
+
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
-    if configurationData is not None:
-        _add_configdata(configurationData, node_templates)
-
-    print("Translating the manifest")
-    _transform(manifests, "micado", node_templates, volumeData, portData, configurationData)
+    if configuration_data is not None:
+        add_configdata(configuration_data, node_templates)
+    _transform(manifests, node_templates, propagation, configuration_data)
     return adt
 
 
-def _add_configdata(configurationData, node_templates):
-    for conf in configurationData:
-        file = conf["file_path"]
-        in_path = Path(file)
-        file_content = conf["file_content"]
-        configmap = {
-            "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
-            "properties": {
-                "data": {f"{in_path.name}": f"{file_content}"}
-            }
-        }
-        node_templates[
-            in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        ] = configmap
-
-
 def _transform(
-    manifests, filename, node_templates, volumeData: list = None, portData: list = None, configurationData: list = None
+    manifests, node_templates, propagation: list = None, configuration_data: list = None
 ):
-    """Transforms a single manifest into a node template
+    """
+    Transforms Kubernetes manifests into node templates for use in a Docker Compose file.
 
     Args:
-        manifests (iter): Iterable of k8s manifests
-        filename (string): Name of the file
-        node_templates (dict): `node_templates` key of the ADT
+        manifests (list): A list of Kubernetes manifests.
+        node_templates (dict): A dictionary of node templates to be populated.
+        propagation (list, optional): A list of propagation options. Defaults to None.
+        configuration_data (list, optional): A list of configuration data. Defaults to None.
     """
-
-    wln = 0
-    for ix, manifest in enumerate(manifests):
-        name, count = _get_name(manifest)
-        if count == 1:
-            wln = wln + 1
-        if wln > 1:
-            print(
-                "Manifest file can't have more than one workloads. Exiting ..."
-            )
-            raise ValueError("Manifest file has more than one workload")
-        node_name = name or f"{filename}-{ix}"
-        kind = manifest["kind"].lower()
-
-        if kind in ["deployment", "pod", "statefulset", "daemonset"]:
-
-            for vol in volumeData:
-                spec = manifest["spec"]
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _update_volume(new_spec, vol)
-                else:
-                    _update_volume(spec, vol)
-
-            for port in portData:
-                spec = manifest["spec"]
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _update_port(new_spec, port)
-                else:
-                    _update_port(spec, port)
-
-            for conf in configurationData:
-                spec = manifest["spec"]
-                if "mount_propagation" in conf:
-                # Handle AMR snake_case naming
-                    conf["mountPropagation"] = conf.pop("mount_propagation")
-                if spec.get("containers") is None:
-                    new_spec = spec["template"]["spec"]
-                    _add_volume(new_spec, conf)
-                else:
-                    _add_volume(spec, conf)
-
-        node_templates[node_name] = _to_node(manifest)
-
-def _update_volume(spec, vol):
-    containers = spec["containers"]
-    for container in containers:
-        volume_mounts = container.setdefault("volumeMounts", [])
-        volume_mount = volume_mounts[vol['id']]
-        if volume_mount["mountPath"] == vol["mountPath"]:
-            volume_mount["mountPropagation"] = vol["mountPropagation"]
-
-def _update_port(spec, port):
-    containers = spec["containers"]
-    for container in containers:
-        ports = container.setdefault("ports", [])
-        update_port = ports[port['id']]
-        if update_port["containerPort"] == port["containerport"]:
-            update_port["hostPort"] = port["hostport"]
-
-def _add_volume(spec, conf):
-    containers = spec["containers"]
-    for container in containers:
-        volume_mounts = container.setdefault("volumeMounts", [])
-
-        # Using subPath here to always mount files individually.
-        # (DIGITbrain configuration files are always single file ConfigMaps.)
-        file = conf["file_path"]
-        in_path = Path(file)
-        cfg_name = in_path.name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        filename = os.path.basename(file)
-        volume_mount = {"name": cfg_name, "mountPath": file, "subPath": filename}
-        if (conf.get("mountPropagation") is not None) and (
-            conf.get("mountPropagation")
-        ):
-            volume_mount["mountPropagation"] = conf["mountPropagation"]
-
-        volume_mounts.append(volume_mount)
-
-    volumes = spec.setdefault("volumes", [])
-    volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
-
-
-def _get_name(manifest):
-    """Returns the name from the manifest metadata
-
-    Args:
-        manifest (dict): K8s manifests
-
-    Returns:
-        string: Name of the Kubernetes object, or None
-    """
-    try:
-        count = 0
+    for manifest in manifests:
         name = manifest["metadata"]["name"].lower()
         kind = manifest["kind"].lower()
-        if kind in ["deployment", "pod", "statefulset", "daemonset"]:
-            count = 1
-        return f"{name}-{kind}", count
-    except KeyError:
-        return None, 0
+        node_name = f"{name}-{kind}"
+
+        if kind not in WORKLOADS:
+            node_templates[node_name] = _to_node(manifest)
+            continue
+
+        spec, container = get_spec_container_from_manifest(manifest)
+        if not container:
+            continue
+
+        update_propagation(container, propagation)
+        update_configmaps(spec, container, configuration_data)
+
+        node_templates[node_name] = _to_node(manifest)
 
 
 def _get_default_adt():
     """Returns the boilerplate for a MiCADO ADT
-
-    Args:
-        filename (string): Filename of K8s manifest(s)
 
     Returns:
         dict: ADT boilerplate
@@ -349,7 +203,7 @@ def _get_default_adt():
 
 
 def _to_node(manifest):
-    """Inlines the Kubernetes manifest under node_templates
+    """Inlines the Kubernetes manifest under a node template
 
     Args:
         manifest (dict): K8s manifest
@@ -357,22 +211,7 @@ def _to_node(manifest):
     Returns:
         dict: ADT node_template
     """
-    metadata = manifest["metadata"]
-    metadata.pop("annotations", None)
-    metadata.pop("creationTimestamp", None)
-    manifest["metadata"] = metadata
 
-    if manifest.get("spec") is not None:
-        spec = manifest["spec"]
-        if spec.get("template") is not None:
-            template = spec["template"]
-            if template.get("metadata") is not None:
-                template_metadata = template["metadata"]
-                template_metadata.pop("annotations", None)
-                template_metadata.pop("creationTimestamp", None)
-                manifest["spec"]["template"]["metadata"] = template_metadata
-
-    manifest.pop("status", None)
     return {
         "type": "tosca.nodes.MiCADO.Kubernetes",
         "interfaces": {"Kubernetes": {"create": {"inputs": manifest}}},
