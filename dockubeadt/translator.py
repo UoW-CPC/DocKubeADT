@@ -49,7 +49,7 @@ def translate_dict(
     propagation = []
 
     if deployment_format == "docker-compose":
-        container_name = validate_compose(topology_metadata)
+        container_name = get_container_from_compose(topology_metadata)
         container = topology_metadata["services"][container_name]
         propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
@@ -228,11 +228,10 @@ def _transform(
             node_templates[node_name] = _to_node(manifest)
             continue
 
-        spec = manifest["spec"]
-        if "containers" not in spec:
-            spec = spec["template"]["spec"]
-        container = spec["containers"][0]
-
+        container = get_container_from_manifest(manifest)
+        if not container:
+            continue
+        
         _update_propagation(container, propagation)
 
 
@@ -248,6 +247,21 @@ def _transform(
                 _add_volume(spec, conf)
 
         node_templates[node_name] = _to_node(manifest)
+
+def get_container_from_manifest(manifest):
+    spec = manifest.get("spec")
+    if not spec:
+        return None
+
+    if "containers" not in spec:
+        spec = spec["template"]["spec"]
+
+    try:
+        container = spec["containers"][0]
+    except (IndexError, KeyError):
+        return None
+
+    return container
 
 def _update_propagation(container, propagation):
     vol_mounts = container.get("volumeMounts", [])
