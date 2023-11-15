@@ -227,7 +227,7 @@ def _transform(
             node_templates[node_name] = _to_node(manifest)
             continue
 
-        container = get_container_from_manifest(manifest)
+        spec, container = get_spec_container_from_manifest(manifest)
         if not container:
             continue
         
@@ -247,7 +247,7 @@ def _transform(
 
         node_templates[node_name] = _to_node(manifest)
 
-def get_container_from_manifest(manifest):
+def get_spec_container_from_manifest(manifest):
     spec = manifest.get("spec")
     if not spec:
         return None
@@ -260,7 +260,7 @@ def get_container_from_manifest(manifest):
     except (IndexError, KeyError):
         return None
 
-    return container
+    return spec, container
 
 def _update_propagation(container, propagation):
     vol_mounts = container.get("volumeMounts", [])
