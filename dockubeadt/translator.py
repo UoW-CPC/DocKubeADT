@@ -36,7 +36,7 @@ def translate(file, stream=False):
 def translate_dict(
     deployment_format,
     topology_metadata,
-    configurationData: list = None,
+    configuration_data: list = None,
 ):
     print(f"Running DocKubeADT v{__version__}")
     
@@ -45,7 +45,7 @@ def translate_dict(
             "Unsupported deployment_format. Expected 'docker-compose' or 'kubernetes-manifest'"
         )
     
-    configurationData = configurationData or []
+    configuration_data = configuration_data or []
     propagation, portData = [], []
 
     if deployment_format == "docker-compose":
@@ -54,7 +54,7 @@ def translate_dict(
         propagation = check_bind_propagation(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, container_name)
     
-    mdt = translate_manifest(topology_metadata, propagation, portData, configurationData)
+    mdt = translate_manifest(topology_metadata, propagation, portData, configuration_data)
 
     buffer = StringIO()
     yaml.dump(mdt, buffer)
@@ -163,7 +163,7 @@ def convert_doc_to_kube(dicts, container_name):
     return manifests
 
 
-def translate_manifest(manifests, propagation: list = None, portData: list = None, configurationData: list = None):
+def translate_manifest(manifests, propagation: list = None, portData: list = None, configuration_data: list = None):
     """Translates K8s Manifest(s) to a MiCADO ADT
 
     Args:
@@ -177,9 +177,9 @@ def translate_manifest(manifests, propagation: list = None, portData: list = Non
 
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
-    if configurationData is not None:
-        _add_configdata(configurationData, node_templates)
-    _transform(manifests, node_templates, propagation, portData, configurationData)
+    if configuration_data is not None:
+        _add_configdata(configuration_data, node_templates)
+    _transform(manifests, node_templates, propagation, portData, configuration_data)
     return adt
 
 def count_workloads(manifests):
@@ -191,8 +191,8 @@ def count_workloads(manifests):
         ]
     )
 
-def _add_configdata(configurationData, node_templates):
-    for conf in configurationData:
+def _add_configdata(configuration_data, node_templates):
+    for conf in configuration_data:
         file = conf["file_path"]
         in_path = Path(file)
         file_content = conf["file_content"]
@@ -208,7 +208,7 @@ def _add_configdata(configurationData, node_templates):
 
 
 def _transform(
-    manifests, node_templates, propagation: list = None, portData: list = None, configurationData: list = None
+    manifests, node_templates, propagation: list = None, portData: list = None, configuration_data: list = None
 ):
     """Transforms a single manifest into a node template
 
@@ -236,7 +236,7 @@ def _transform(
         _update_propagation(container, propagation)
 
 
-        for conf in configurationData:
+        for conf in configuration_data:
             spec = manifest["spec"]
             if "mount_propagation" in conf:
             # Handle AMR snake_case naming
