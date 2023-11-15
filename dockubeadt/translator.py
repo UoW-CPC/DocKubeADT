@@ -1,14 +1,19 @@
 import os
-import re
-import subprocess
 from io import StringIO
-from pathlib import Path
 from tempfile import NamedTemporaryFile
 
 from dockubeadt import __version__
-from dockubeadt.utils import load_multi_yaml, load_yaml, dump_yaml
+from dockubeadt.utils import (
+    load_multi_yaml, load_yaml, dump_yaml, run_command
+)
+from dockubeadt.compose import (
+    is_compose, get_container_from_compose, check_bind_propagation
+)
+from dockubeadt.kube import (
+    WORKLOADS, count_workloads, get_spec_container_from_manifest,
+    add_configdata, update_configmaps, update_propagation
+)
 
-WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
 
 def translate(file, stream=False):
     """
@@ -89,101 +94,6 @@ def translate_dict(
     return buffer.getvalue()
 
 
-def is_compose(data):
-    """
-    Check if the given data is a Docker Compose file by
-    looking for the 'services' key.
-
-    Args:
-        data (str): The YAML data to check.
-
-    Returns:
-        bool: True if the data is a Docker Compose file, False otherwise.
-    """
-    return "services" in load_multi_yaml(data)[0]
-
-
-def get_container_from_compose(compose):
-    """
-    Gets the container from the Docker Compose file. Raises an error if
-    the file contains more than one container.
-
-    Args:
-        compose (dict): A dictionary representing the Docker Compose file.
-
-    Returns:
-        str: The name of the service to be converted.
-
-    Raises:
-        ValueError: If the Docker Compose file contains more than one service.
-    """
-    services = compose["services"]
-    if len(services) > 1:
-        raise ValueError("DocKubeADT does not support conversion of multiple containers")
-    return list(services.keys())[0]
-
-def check_bind_propagation(container):
-    """
-    Check the propagation of bind mounts for a given container.
-
-    Args:
-        container (dict): A dictionary representing the container.
-
-    Returns:
-        list: A list of propagation data for each volume in the container.
-    """
-    volume_data = []
-    for volume in container.get("volumes", []):
-        volume_data.append(get_propagation(volume))
-
-    return volume_data
-
-def get_propagation(volume):
-    """
-    Returns the propagation mode for the given volume.
-
-    Args:
-        volume (dict): A dictionary representing the volume.
-
-    Returns:
-        str: The propagation mode for the volume, or None if it cannot be determined.
-    """
-    mapping = {
-        "rshared": "Bidirectional",
-        "rslave": "HostToContainer"
-    }
-    try:
-        return mapping[volume["bind"]["propagation"]]
-    except (KeyError, TypeError):
-        return None
-
-def run_command(cmd):
-    """
-    Executes a shell command and returns the output and return code.
-
-    Args:
-        cmd (str): The command to execute.
-
-    Returns:
-        tuple: A tuple containing the return code and output of the command.
-    """
-    with subprocess.Popen(
-            cmd, 
-            stderr=subprocess.STDOUT,
-            stdout=subprocess.PIPE,
-            shell=True
-    ) as p:
-        
-        output = ""
-        for line in p.stdout:
-            # Regex gets rid of additional characters in Kompose output
-            output += re.sub(
-                r'\x1b(\[.*?[@-~]|\].*?(\x07|\x1b\\))',
-                '',
-                line.decode()
-            )
-    return p.returncode, output
-
 def convert_doc_to_kube(dicts, container_name):
     """
     Converts a Docker Compose file to Kubernetes manifests using Kompose.
@@ -227,7 +137,7 @@ def translate_manifest(
         configuration_data: list = None
     ):
     """
-    Translates a Kubernetes manifest file into an Azure Deployment Template (ADT).
+    Translates a Kubernetes manifest file into an ADT.
 
     Args:
         manifests (list): A list of Kubernetes manifest files.
@@ -243,51 +153,9 @@ def translate_manifest(
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
     if configuration_data is not None:
-        _add_configdata(configuration_data, node_templates)
+        add_configdata(configuration_data, node_templates)
     _transform(manifests, node_templates, propagation, configuration_data)
     return adt
-
-def count_workloads(manifests):
-    """
-    Counts the number of workloads in the given list of manifests.
-    
-    Args:
-        manifests (list): A list of Kubernetes manifests.
-        
-    Returns:
-        int: The number of workloads in the given list of manifests.
-    """
-    return len(
-        [
-            manifest for manifest
-            in manifests
-            if manifest and manifest["kind"].lower() in WORKLOADS
-        ]
-    )
-
-def _add_configdata(configuration_data, node_templates):
-    """
-    Add configuration data to the ADT.
-
-    Args:
-        configuration_data (list): A list of dictionaries containing configuration data.
-        node_templates (dict): A dictionary containing the ADT.
-
-    Returns:
-        None
-    """
-    for conf in configuration_data:
-        file_name = Path(conf["file_path"]).name
-        file_content = conf["file_content"]
-        configmap = {
-            "type": "tosca.nodes.MiCADO.Container.Config.Kubernetes",
-            "properties": {
-                "data": {file_name: file_content}
-            }
-        }
-
-        node_name = file_name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        node_templates[node_name] = configmap
 
 
 def _transform(
@@ -316,80 +184,11 @@ def _transform(
         if not container:
             continue
 
-        _update_propagation(container, propagation)
-        _update_configmaps(spec, container, configuration_data)
+        update_propagation(container, propagation)
+        update_configmaps(spec, container, configuration_data)
 
         node_templates[node_name] = _to_node(manifest)
 
-def get_spec_container_from_manifest(manifest):
-    """
-    Given a Kubernetes manifest, returns the spec and first container definition
-    found in the manifest's spec. If no container is found, returns None.
-
-    Args:
-        manifest (dict): A Kubernetes manifest.
-
-    Returns:
-        tuple: A tuple containing the spec and container definition, or None if no
-        container is found.
-    """
-    spec = manifest.get("spec")
-    if not spec:
-        return None
-
-    if "containers" not in spec:
-        spec = spec["template"]["spec"]
-
-    try:
-        container = spec["containers"][0]
-    except (IndexError, KeyError):
-        return None
-
-    return spec, container
-
-def _update_propagation(container, propagation):
-    """
-    Update the mount propagation for each volume mount in the container.
-
-    Args:
-        container (dict): The container to update.
-        propagation (list): A list of mount propagation values to apply to each
-            volume mount in the container.
-
-    Returns:
-        None
-    """
-    vol_mounts = container.get("volumeMounts", [])
-    for prop, mount in zip(propagation, vol_mounts):
-        if not prop:
-            continue
-        mount["mountPropagation"] = prop
-
-def _update_configmaps(spec, container, configuration_data):
-    """
-    Update the Kubernetes spec and container with the configuration data.
-
-    Args:
-        spec (dict): The Kubernetes spec to update.
-        container (dict): The container to update.
-        configuration_data (list): A list of configuration data.
-
-    Returns:
-        None
-    """
-    volumes = spec.setdefault("volumes", [])
-    volume_mounts = container.setdefault("volumeMounts", [])
-    for configmap in configuration_data:
-
-        # Using subPath here to always mount files individually.
-        # (DIGITbrain configuration files are always single file ConfigMaps.)
-        file = configmap["file_path"]
-        cfg_name = Path(file).name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
-        volumes.append({"name": cfg_name, "configMap": {"name": cfg_name}})
-
-        filename = os.path.basename(file)
-        volume_mount = {"name": cfg_name, "mountPath": file, "subPath": filename}
-        volume_mounts.append(volume_mount)
 
 def _get_default_adt():
     """Returns the boilerplate for a MiCADO ADT
