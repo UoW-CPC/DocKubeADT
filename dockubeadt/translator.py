@@ -14,6 +14,17 @@ yaml = YAML()
 WORKLOADS = ["deployment", "pod", "statefulset", "daemonset"]
 
 def translate(file, stream=False):
+    """
+    Translates a Docker Compose file or a Kubernetes manifest file into an ADT.
+
+    Args:
+        file (str): The path to the file to be translated, or the file contents if `stream` is True.
+        stream (bool, optional): Whether `file` contains the file contents directly. Defaults to False.
+
+    Returns:
+        dict: A dictionary representing the ADT.
+    """
+
     if not stream:
         with open(file, "r") as in_file:
             data = in_file.read()
@@ -37,6 +48,24 @@ def translate_dict(
     topology_metadata,
     configuration_data: list = None,
 ):
+    """
+    Translates the metadata from the specified deployment format.
+
+    Args:
+        deployment_format (str): The deployment format to translate to.
+          Must be either 'docker-compose' or 'kubernetes-manifest'.
+
+        topology_metadata (dict): The topology metadata to translate.
+        
+        configuration_data (list, optional): The configuration data to use
+          for the translation. Defaults to None.
+
+    Raises:
+        ValueError: If the deployment_format is not 'docker-compose' or 'kubernetes-manifest'.
+
+    Returns:
+        str: The translated topology metadata in YAML format.
+    """
     print(f"Running DocKubeADT v{__version__}")
     
     if deployment_format not in ["docker-compose", "kubernetes-manifest"]:
@@ -64,19 +93,32 @@ def translate_dict(
 
 
 def is_compose(data):
-    """Check whether the given dictionary is a Docker Compose
+    """
+    Check if the given data is a Docker Compose file by
+    looking for the 'services' key.
+
+    Args:
+        data (str): The YAML data to check.
+
+    Returns:
+        bool: True if the data is a Docker Compose file, False otherwise.
     """
     return "services" in list(yaml.load_all(data))[0]
 
 
-def validate_compose(compose):
-    """Check whether the given Docker Compose file contains more than one containers
+def get_container_from_compose(compose):
+    """
+    Gets the container from the Docker Compose file. Raises an error if
+    the file contains more than one container.
 
     Args:
-        dicts (dictionary): Dictionary containing Docker Compose contents
+        compose (dict): A dictionary representing the Docker Compose file.
 
     Returns:
-        string: name of the container
+        str: The name of the service to be converted.
+
+    Raises:
+        ValueError: If the Docker Compose file contains more than one service.
     """
     services = compose["services"]
     if len(services) > 1:
@@ -84,13 +126,14 @@ def validate_compose(compose):
     return list(services.keys())[0]
 
 def check_bind_propagation(container):
-    """Check whether a container has volume bind propagation
+    """
+    Check the propagation of bind mounts for a given container.
 
     Args:
-        dicts (dictionary): Dictionary containing the container details
+        container (dict): A dictionary representing the container.
 
     Returns:
-        volume_data: details regarding the bind propagation
+        list: A list of propagation data for each volume in the container.
     """
     volume_data = []
     for volume in container.get("volumes", []):
@@ -99,6 +142,15 @@ def check_bind_propagation(container):
     return volume_data
 
 def get_propagation(volume):
+    """
+    Returns the propagation mode for the given volume.
+
+    Args:
+        volume (dict): A dictionary representing the volume.
+
+    Returns:
+        str: The propagation mode for the volume, or None if it cannot be determined.
+    """
     mapping = {
         "rshared": "Bidirectional",
         "rslave": "HostToContainer"
@@ -108,10 +160,16 @@ def get_propagation(volume):
     except (KeyError, TypeError):
         return None
 
-
 def run_command(cmd):
-    """Run a command, getting RC and output"""
+    """
+    Executes a shell command and returns the output and return code.
 
+    Args:
+        cmd (str): The command to execute.
+
+    Returns:
+        tuple: A tuple containing the return code and output of the command.
+    """
     with subprocess.Popen(
             cmd, 
             stderr=subprocess.STDOUT,
@@ -130,14 +188,17 @@ def run_command(cmd):
     return p.returncode, output
 
 def convert_doc_to_kube(dicts, container_name):
-    """Check whether the given file Docker Compose contains more than one containers
+    """
+    Converts a Docker Compose file to Kubernetes manifests using Kompose.
 
     Args:
-        dicts (dictionary): Dictionary containing Docker Compose file
+        dicts (dict): A dictionary containing the Docker Compose file contents.
+        container_name (str): The name of the container.
 
     Returns:
-        dict: Kubernetes manifests
+        generator: A generator object containing the Kubernetes manifests.
     """
+    
     out_file = f"{container_name}.yaml"
     with NamedTemporaryFile("w", dir=os.getcwd()) as tmpfile:
         yaml.dump(dicts, tmpfile)
@@ -163,13 +224,21 @@ def convert_doc_to_kube(dicts, container_name):
     return manifests
 
 
-def translate_manifest(manifests, propagation: list = None, configuration_data: list = None):
-    """Translates K8s Manifest(s) to a MiCADO ADT
+def translate_manifest(
+        manifests,
+        propagation: list = None,
+        configuration_data: list = None
+    ):
+    """
+    Translates a Kubernetes manifest file into an Azure Deployment Template (ADT).
 
     Args:
-        file (string): Path to Kubernetes manifest
+        manifests (list): A list of Kubernetes manifest files.
+        propagation (list, optional): A list of Kubernetes propagation policies. Defaults to None.
+        configuration_data (list, optional): A list of configuration data. Defaults to None.
+
     Returns:
-        adt: ADT in dictionary format
+        dict: An Azure Deployment Template (ADT) object.
     """
     manifests = list(manifests)
     if count_workloads(manifests) > 1:
@@ -183,6 +252,15 @@ def translate_manifest(manifests, propagation: list = None, configuration_data: 
     return adt
 
 def count_workloads(manifests):
+    """
+    Counts the number of workloads in the given list of manifests.
+    
+    Args:
+        manifests (list): A list of Kubernetes manifests.
+        
+    Returns:
+        int: The number of workloads in the given list of manifests.
+    """
     return len(
         [
             manifest for manifest
@@ -192,6 +270,16 @@ def count_workloads(manifests):
     )
 
 def _add_configdata(configuration_data, node_templates):
+    """
+    Add configuration data to the ADT.
+
+    Args:
+        configuration_data (list): A list of dictionaries containing configuration data.
+        node_templates (dict): A dictionary containing the ADT.
+
+    Returns:
+        None
+    """
     for conf in configuration_data:
         file_name = Path(conf["file_path"]).name
         file_content = conf["file_content"]
@@ -201,7 +289,7 @@ def _add_configdata(configuration_data, node_templates):
                 "data": {file_name: file_content}
             }
         }
-        
+
         node_name = file_name.lower().replace(".", "-").replace("_", "-").replace(" ", "-")
         node_templates[node_name] = configmap
 
@@ -209,14 +297,15 @@ def _add_configdata(configuration_data, node_templates):
 def _transform(
     manifests, node_templates, propagation: list = None, configuration_data: list = None
 ):
-    """Transforms a single manifest into a node template
+    """
+    Transforms Kubernetes manifests into node templates for use in a Docker Compose file.
 
     Args:
-        manifests (iter): Iterable of k8s manifests
-        filename (string): Name of the file
-        node_templates (dict): `node_templates` key of the ADT
+        manifests (list): A list of Kubernetes manifests.
+        node_templates (dict): A dictionary of node templates to be populated.
+        propagation (list, optional): A list of propagation options. Defaults to None.
+        configuration_data (list, optional): A list of configuration data. Defaults to None.
     """
-
     for manifest in manifests:
 
         name = manifest["metadata"]["name"].lower()
@@ -237,6 +326,17 @@ def _transform(
         node_templates[node_name] = _to_node(manifest)
 
 def get_spec_container_from_manifest(manifest):
+    """
+    Given a Kubernetes manifest, returns the spec and first container definition
+    found in the manifest's spec. If no container is found, returns None.
+
+    Args:
+        manifest (dict): A Kubernetes manifest.
+
+    Returns:
+        tuple: A tuple containing the spec and container definition, or None if no
+        container is found.
+    """
     spec = manifest.get("spec")
     if not spec:
         return None
@@ -252,6 +352,17 @@ def get_spec_container_from_manifest(manifest):
     return spec, container
 
 def _update_propagation(container, propagation):
+    """
+    Update the mount propagation for each volume mount in the container.
+
+    Args:
+        container (dict): The container to update.
+        propagation (list): A list of mount propagation values to apply to each
+            volume mount in the container.
+
+    Returns:
+        None
+    """
     vol_mounts = container.get("volumeMounts", [])
     for prop, mount in zip(propagation, vol_mounts):
         if not prop:
@@ -259,6 +370,17 @@ def _update_propagation(container, propagation):
         mount["mountPropagation"] = prop
 
 def _update_configmaps(spec, container, configuration_data):
+    """
+    Update the Kubernetes spec and container with the configuration data.
+
+    Args:
+        spec (dict): The Kubernetes spec to update.
+        container (dict): The container to update.
+        configuration_data (list): A list of configuration data.
+
+    Returns:
+        None
+    """
     volumes = spec.setdefault("volumes", [])
     volume_mounts = container.setdefault("volumeMounts", [])
     for configmap in configuration_data:
@@ -276,9 +398,6 @@ def _update_configmaps(spec, container, configuration_data):
 def _get_default_adt():
     """Returns the boilerplate for a MiCADO ADT
 
-    Args:
-        filename (string): Filename of K8s manifest(s)
-
     Returns:
         dict: ADT boilerplate
     """
@@ -288,7 +407,7 @@ def _get_default_adt():
 
 
 def _to_node(manifest):
-    """Inlines the Kubernetes manifest under node_templates
+    """Inlines the Kubernetes manifest under a node template
 
     Args:
         manifest (dict): K8s manifest
