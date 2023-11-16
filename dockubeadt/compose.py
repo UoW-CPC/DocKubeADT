@@ -56,6 +56,29 @@ def check_bind_propagation(container):
     return volume_data
 
 
+def fix_open_param_volumes(container):
+    """
+    Fixes the volumes in the given container by prepending a forward
+    slash to the target and source paths if they start as open_parameters.
+
+    Args:
+        container (dict): A dictionary representing the container.
+
+    Returns:
+        None
+    """
+    for i, vol in enumerate(container.get("volumes", [])):
+        if isinstance(vol, dict):
+            vol["target"] = _fix_if_open_param(vol["target"])
+            vol["source"] = _fix_if_open_param(vol["source"])
+
+        elif isinstance(vol, str):
+            target, source = vol.split(":")[:2]
+            container["volumes"][
+                i
+            ] = f"{_fix_if_open_param(target)}:{_fix_if_open_param(source)}"
+
+
 def _get_propagation(volume):
     """
     Returns the propagation mode for the given volume.
@@ -71,3 +94,20 @@ def _get_propagation(volume):
         return mapping[volume["bind"]["propagation"]]
     except (KeyError, TypeError):
         return None
+
+
+def _fix_if_open_param(path):
+    """
+    Prepends a forward slash to the path if it starts with the match pattern.
+
+    Args:
+        path (str): The path to check and modify.
+        match_pattern (str): The pattern to check for at the start of the path.
+
+    Returns:
+        str: The modified path.
+    """
+    MATCH = "open_parameter{"
+    if path.startswith(MATCH):
+        return f"/{path}"
+    return path

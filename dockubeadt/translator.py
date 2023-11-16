@@ -8,6 +8,7 @@ from dockubeadt.compose import (
     is_compose,
     get_container_and_name,
     check_bind_propagation,
+    fix_open_param_volumes,
 )
 from dockubeadt.kube import (
     WORKLOADS,
@@ -85,6 +86,7 @@ def translate_dict(
     if deployment_format == "docker-compose":
         container, name = get_container_and_name(topology_metadata)
         propagation = check_bind_propagation(container)
+        fix_open_param_volumes(container)
         topology_metadata = convert_doc_to_kube(topology_metadata, name)
 
     mdt = translate_manifest(topology_metadata, propagation, configuration_data)
