@@ -153,7 +153,7 @@ def translate_manifest(
 
     adt = _get_default_adt()
     node_templates = adt["node_templates"]
-    if configuration_data is not None:
+    if configuration_data:
         add_configdata(configuration_data, node_templates)
     _transform(manifests, node_templates, propagation, configuration_data)
     return adt
@@ -185,7 +185,8 @@ def _transform(
             continue
 
         update_propagation(container, propagation)
-        update_configmaps(spec, container, configuration_data)
+        if configuration_data:
+            update_configmaps(spec, container, configuration_data)
 
         node_templates[node_name] = _to_node(manifest)
 
