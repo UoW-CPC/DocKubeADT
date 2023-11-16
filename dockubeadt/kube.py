@@ -99,6 +99,22 @@ def update_propagation(container, propagation):
         mount["mountPropagation"] = prop
 
 
+def fix_params_in_volumes(spec, container):
+    volumes = spec.get("volumes", [])
+    for volume in volumes:
+        try:
+            volume["hostPath"]["path"] = _update_path(volume["hostPath"]["path"])
+        except KeyError:
+            pass
+
+    mounts = container.get("volumeMounts", [])
+    for mount in mounts:
+        try:
+            mount["mountPath"] = _update_path(mount["mountPath"])
+        except KeyError:
+            pass
+
+
 def update_configmaps(spec, container, configuration_data):
     """
     Update the Kubernetes spec and container with the configuration data.
@@ -129,3 +145,7 @@ def update_configmaps(spec, container, configuration_data):
         filename = os.path.basename(file)
         volume_mount = {"name": cfg_name, "mountPath": file, "subPath": filename}
         volume_mounts.append(volume_mount)
+
+
+def _update_path(path):
+    return re.sub(r"^/open_parameter{", "open_parameter{", path)

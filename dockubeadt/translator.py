@@ -17,6 +17,7 @@ from dockubeadt.kube import (
     add_configdata,
     update_configmaps,
     update_propagation,
+    fix_params_in_volumes,
 )
 
 
@@ -187,6 +188,7 @@ def _transform(
             continue
 
         update_propagation(container, propagation)
+        fix_params_in_volumes(spec, container)
         if configuration_data:
             update_configmaps(spec, container, configuration_data)
 
