@@ -4,7 +4,7 @@ import subprocess
 from ruamel.yaml import YAML
 
 yaml = YAML()
-
+yaml.preserve_quotes = True
 
 def load_multi_yaml(data):
     """
